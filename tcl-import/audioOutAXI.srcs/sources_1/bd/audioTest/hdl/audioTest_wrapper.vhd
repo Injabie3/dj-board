@@ -1,7 +1,7 @@
 --Copyright 1986-2017 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2017.3 (win64) Build 2018833 Wed Oct  4 19:58:22 MDT 2017
---Date        : Sat Feb 17 16:33:26 2018
+--Date        : Sat Feb 17 17:26:20 2018
 --Host        : Lui-Ryan-New running 64-bit major release  (build 9200)
 --Command     : generate_target audioTest_wrapper.bd
 --Design      : audioTest_wrapper

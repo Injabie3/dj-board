@@ -17,7 +17,12 @@
 #ifndef SRC_LUIINTERRUPTS_H_
 #define SRC_LUIINTERRUPTS_H_
 
-// This sets up the interrupt controller that is on the PS for the GPIO supplied.
+
+// ##############################
+// # INTERRUPT SET UP FUNCTIONS #
+// ##############################
+
+// This sets up the interrupt controller that is on the PS for the GPIO supplied (for GPIO on the PL [AXI]).
 // Parameters:
 // - interruptController: 	A pointer to the interrupt controller.
 // - gpio:					A pointer to the GPIO instance to associate with the interrupt controller.
@@ -37,15 +42,48 @@
 // Returns:
 // - XST_SUCCESS, if the interrupt system was set up successfully!
 // - XST_FAILURE, if the interrupt system could not be set up.
-int setupInterruptSystemXScuGic(XScuGic* interruptController, XGpio* gpio, int interruptID, Xil_ExceptionHandler interruptHandler);
+int setupInterruptSystemGpio(XScuGic* interruptController, XGpio* gpio, int interruptID, Xil_ExceptionHandler interruptHandler);
+
+// This sets up the interrupt controller that is on the PS for the GPIO supplied (for GPIO on the PS).
+// Parameters:
+// - interruptController: 	A pointer to the interrupt controller.
+// - gpio:					A pointer to the PS GPIO instance to associate with the interrupt controller.
+// - interruptID			The interrupt ID.
+// - pin					The pin that you want to enable interrupts for.
+// - interruptHandler		The function you want to execute when an interrupt from the GPIO occurs.
+// Returns:
+// - XST_SUCCESS, if the interrupt system was set up successfully!
+// - XST_FAILURE, if the interrupt system could not be set up.
+int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int interruptID, int pin, Xil_ExceptionHandler interruptHandler);
+
+// This sets up the interrupt controller that is on the PS for the timer supplied (for timer on the PS).
+// Parameters:
+// - interruptController: 	A pointer to the interrupt controller.
+// - timer:					A pointer to the PS Timer instance to associate with the interrupt controller.
+// - interruptID			The interrupt ID.
+// - interruptHandler		The function you want to execute when an interrupt from the GPIO occurs.
+// Returns:
+// - XST_SUCCESS, if the interrupt system was set up successfully!
+// - XST_FAILURE, if the interrupt system could not be set up.
+int setupInterruptSystemTimerPs(XScuGic* interruptController, XScuTimer* timer, int interruptID, Xil_ExceptionHandler interruptHandler);
 
 // Registers the interrupt handler in the vector table, and enables IRQ interrupts in the ARM processor.
 void registerInterruptHandler(XScuGic* interruptController);
 
+
+// #######################################
+// # INTERRUPT HANDLERS/SERVICE ROUTINES #
+// #######################################
 // This function is what will get called when an interrupt occurs from the switches
 void gpioSwitchesInterruptHandler(void *CallbackRef);
 
-// This function is what will get called when an interrupt occurs from the 5 push buttons
+// This function is what will get called when an interrupt occurs from the 5 push buttons on the PL side.
 void gpioPushButtonsInterruptHandler(void *CallbackRef);
 
-#endif /* SRC_LUIMEMORYLOCATIONS_H_ */
+// This function is what will get called when an interrupt occurs from the 2 push buttons on the PS side.
+void gpioPushButtonsPSInterruptHandler(void *CallbackRef);
+
+// This function is what will get called when the timer interrupt occurs.
+void timerInterruptHandler(void *CallbackRef);
+
+#endif /* SRC_LUIINTERRUPTS_H_ */
