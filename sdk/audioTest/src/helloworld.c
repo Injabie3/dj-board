@@ -73,7 +73,9 @@ volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 #define DEVICE_ID_TIMER					XPAR_PS7_SCUTIMER_0_DEVICE_ID
 #define DDR_BASE                  		XPAR_PS7_DDR_0_S_AXI_BASEADDR
 #define TX_BUFFER_BASE             		(DDR_BASE + 0x00100000)
+#define MX_BUFFER_BASE            		(DDR_BASE + 0x00300000)
 #define RX_BUFFER_BASE            		(DDR_BASE + 0x00400000)
+#define RX_SHIFT_BUFFER_BASE      		(DDR_BASE + 0x00500000)
 
 //#define INTERRUPTCONTROLLER_ADDRESS		XPAR_AXI_INTC_0_BASEADDR
 
@@ -91,6 +93,11 @@ static XScuTimer psTimer;					// PS Timer.
 static XScuTimer_Config *psTimerConfig;		// PS Timer config.
 int switches;
 
+// This function is responsible for getting data from audio FIFO 64 samples at a time
+// stores 64 samples in memory then sends it to FFT, then to IFFT
+void audioDriver();
+void getAudioData(); 
+void sendAudioData(); 
 // Initialize GPIO peripherals and the PS interrupt controller
 int initializePeripherals();
 
@@ -99,17 +106,28 @@ int initializePeripherals();
 // - Populates DDR with a test vector.
 // - Does a data transfer to and from the FFT core via the DMA
 //   to perform a forward FFT.
-int XAxiDma_FftDataTransfer(u16 DeviceId);
+int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* TxBuf, volatile u64* RxBuf);
 
-// This function sets up the FFT core.
+//mirrors image
+int XAxiDma_IFftDataTransfer(u16 DeviceId);
+
+// This function sets up the FFT core with forward FFT.
 int XGpio_FftConfig();
+
+// This function configures the FFT core with inverse FFT
+//To get back the original data
+int XGpio_IFftConfig();
+
+//This function is to shift the IFFT output back
+void shiftBits(volatile u64* RxBuf);
+
 
 // This function is a loop to test the audio with GPIO switches.
 void audioLoop();
 
 int main()
 {
-	int status;
+
     init_platform();
 
     initializePeripherals();
@@ -136,12 +154,21 @@ int main()
 
     print("Hello World\n\r");
 
-    status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA);
 
-	if (status != XST_SUCCESS) {
-		xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
-		return XST_FAILURE;
-	}
+
+
+    // test data
+    /*TxBufferPtr[0] = 0x0000000000004000;
+    TxBufferPtr[1] = 0x00000000c6fae2f2;
+    TxBufferPtr[2] = 0x0000000033c7da62;
+    TxBufferPtr[3] = 0x000000000a033f36;
+    TxBufferPtr[4] = 0x00000000c322ec39;
+    TxBufferPtr[5] = 0x000000002d41d2bf;
+    TxBufferPtr[6] = 0x0000000013c73cde;
+    TxBufferPtr[7] = 0x00000000c0caf5fd;*/
+
+    audioDriver();
+
 
 	xil_printf("Successfully ran XAxiDma_SimplePoll Example\r\n");
 
@@ -229,12 +256,113 @@ int initializePeripherals() {
 	return status;
 }
 
+void audioDriver() {
+// first step is to read in 64 samples from
+
+	u32 dataIn = 0;
+	u32 dataOut = 0;
+	u32 temp = 0;
+	u32 tempLeft = 0;
+	u32 tempRight = 0;
+
+	int configStatus, status;
+
+	volatile u64 *TxBufferPtr;
+    volatile u64 *MxBufferPtr;
+    volatile u64 *RxBufferPtr;
+	volatile u64 *RxShiftBufferPtr;
+
+    TxBufferPtr = (u64 *)TX_BUFFER_BASE;
+    MxBufferPtr = (u64 *)MX_BUFFER_BASE;
+    RxBufferPtr = (u64 *)RX_BUFFER_BASE;
+	RxShiftBufferPtr = (u64 *)RX_SHIFT_BUFFER_BASE;
+	// loop on audio
+	while (1) {
+		//keep looping until we've read in 64 data samples
+		dataIn = 0;
+		while (dataIn < 64){
+			// check if the ADC FIFO is not empty
+			if ((AUDIOCHIP[0] & 1<<2)==0){
+				// get right and left channel
+				// pad with 0s for 64bit input to FFT
+				//0000RRRR0000LLLL
+				temp = AUDIOCHIP[2];
+				tempRight = temp & 0xFFFF0000;
+				tempLeft = temp & 0xFFFF;
+				tempRight>>=16;
+				TxBufferPtr[dataIn] = (((u64)tempRight << 32) | tempLeft);
+				dataIn++;
+			}
+		}
+		configStatus = XGpio_FftConfig();
+		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, TxBufferPtr, MxBufferPtr);
+
+		if (status != XST_SUCCESS) {
+			xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
+		return XST_FAILURE;
+		}
+		// want to convert data back so we send it through IFFT
+
+		configStatus = XGpio_IFftConfig();
+		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, RxBufferPtr);
+
+		if (status != XST_SUCCESS) {
+				xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
+				return XST_FAILURE;
+			}
+		//need to convert output because it is shifted by 3 bits
+		shiftBits(RxBufferPtr);
+		dataOut = 0;
+		//now we want to check the DAC
+		while(dataOut < 64){
+			// if DAC FIFO is not FULL we can write data to it
+			if ((AUDIOCHIP[0] & 1<<5)==0) {
+				tempRight = RxShiftBufferPtr[dataOut]>>16;
+				tempLeft = RxShiftBufferPtr[dataOut];
+				temp = (tempRight & 0xFFFF0000)| (tempLeft & 0xFFFF);
+				AUDIOCHIP[1] = temp;
+				dataOut++;
+			}
+		}
+
+	}
+}
+
+void shiftBits(volatile u64* RxBuf){
+
+	const uint POINT_SIZE = 64;
+	volatile u64 *RxShiftBufferPtr;
+	u64 temp[POINT_SIZE];
+	RxShiftBufferPtr = (u64 *)RX_SHIFT_BUFFER_BASE;
+
+	for (int i=0;i<POINT_SIZE;i++){
+		temp[i] = (RxBuf[i] << 6) & 0xFFFF; // the LSB part
+		temp[i] = (((RxBuf[i] & 0xFFFF0000) << 6) & 0xFFFF0000) | temp[i]; // concatenating as we go
+		temp[i] = (((RxBuf[i] & 0xFFFF00000000) << 6) & 0xFFFF00000000) | temp[i];
+		//for the last one do we need to & it again ? i don't think so lol
+		temp[i] = ((RxBuf[i] & 0xFFFF000000000000) << 6) | temp[i];
+
+		if (i==0)
+			RxShiftBufferPtr[i] = temp[i];
+		else {
+			RxShiftBufferPtr[POINT_SIZE-i] = temp[i];
+		}
+	}
+	// now need to swap the order  of the bits
+
+
+
+}
+
 // This function does the following:
 // - Initializes the DMA.
 // - Populates DDR with a test vector.
 // - Does a data transfer to and from the FFT core via the DMA
 //   to perform a forward FFT.
-int XAxiDma_FftDataTransfer(u16 DeviceId){
+int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* TxBuf, volatile u64* RxBuf){
+
+
+	// making these pointers global for the purpose of using same FFT core for forward and inverse
 
 
 	//****************** Configure the DMA ***********************************/
@@ -242,26 +370,6 @@ int XAxiDma_FftDataTransfer(u16 DeviceId){
 	XAxiDma_Config *CfgPtr;
 	int Status;
 	//int Tries = NUMBER_OF_TRANSFERS;
-	volatile u64 *TxBufferPtr;
-	volatile u64 *RxBufferPtr;
-
-	TxBufferPtr = (u64 *)TX_BUFFER_BASE ;
-	RxBufferPtr = (u64 *)RX_BUFFER_BASE;
-
-	/***********************************************/
-	// initialize transmission buffer  with sample data
-	//Simulated with a complex sinusoid from 0 to 2pi with
-	//2.6 times the frame size
-	TxBufferPtr[0] = 0x0000000000004000;
-	TxBufferPtr[1] = 0x00000000c6fae2f2;
-	TxBufferPtr[2] = 0x0000000033c7da62;
-	TxBufferPtr[3] = 0x000000000a033f36;
-	TxBufferPtr[4] = 0x00000000c322ec39;
-	TxBufferPtr[5] = 0x000000002d41d2bf;
-	TxBufferPtr[6] = 0x0000000013c73cde;
-	TxBufferPtr[7] = 0x00000000c0caf5fd;
-
-
 	/* Initialize the XAxiDma device.
 	 */
 	CfgPtr = XAxiDma_LookupConfig(DeviceId);
@@ -292,22 +400,22 @@ int XAxiDma_FftDataTransfer(u16 DeviceId){
 
 
 	// flush the cache
-	Xil_DCacheFlushRange((UINTPTR)TxBufferPtr, 0x40);
+	Xil_DCacheFlushRange((UINTPTR)TxBuf, 0x200);
 	//#ifdef __aarch64__
-		Xil_DCacheFlushRange((UINTPTR)RxBufferPtr, 0x40);
+		Xil_DCacheFlushRange((UINTPTR)RxBuf, 0x200);
 	//#endif
 
 		/**********************Start data transfer with FFT***************************/
 		//
-			Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) RxBufferPtr,
-						0x40, XAXIDMA_DEVICE_TO_DMA);
+			Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) RxBuf,
+						0x200, XAXIDMA_DEVICE_TO_DMA);
 
 			if (Status != XST_SUCCESS) {
 				return XST_FAILURE;
 			}
 
-			Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) TxBufferPtr,
-					0x40, XAXIDMA_DMA_TO_DEVICE);
+			Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) TxBuf,
+					0x200, XAXIDMA_DMA_TO_DEVICE);
 
 			if (Status != XST_SUCCESS) {
 				return XST_FAILURE;
@@ -319,14 +427,14 @@ int XAxiDma_FftDataTransfer(u16 DeviceId){
 							/* Wait */
 					}
 
-	 // want to convert data from hex to decimal to compare to data in MATLAB
-	for (int i =0; i<8; i++){
-		xil_printf("%d + i%d\n\r", (int16_t)(RxBufferPtr[i]), (int16_t)(RxBufferPtr[i]>>16));
-	}
 	return 0;
 }
 
-// This function sets up the FFT core.
+
+
+
+// This function sets up the FFT core
+
 int XGpio_FftConfig() {
 
 	/***********************Initialize GPIO**************************/
@@ -338,13 +446,39 @@ int XGpio_FftConfig() {
 
 	/********************Configure the FFT***********************/
 	// configure forward FFT for each channel
-	XGpio_DiscreteWrite(&gpioFftConfig, 1, 0x11);
+	// this is configuring for 010101...
+	// top 2 channels are IFFT bottom 2 are forward FFT
+	XGpio_DiscreteWrite(&gpioFftConfig, 1, 0x1555557);
+	//XGpio_DiscreteWrite(&gpioFftConfig, 1, 0b11);
 	// send valid signal
-	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0x1);
+	// concatenated to the config
+	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b1);
 
 
 	return 0;
 }
+
+
+int XGpio_IFftConfig() {
+
+	/***********************Initialize GPIO**************************/
+	int status = XGpio_Initialize(&gpioFftConfig, DEVICE_ID_FFT_GPIO);
+	if (status != XST_SUCCESS ){
+		xil_printf("Initialization failed %d\r\n", status);
+		return XST_FAILURE;
+	}
+
+	/********************Configure the FFT***********************/
+	// configure forward FFT for each channel
+	// this is configuring for 010101...
+	// top 2 channels are IFFT bottom 2 are forward FFT
+	XGpio_DiscreteWrite(&gpioFftConfig, 1, 0x1555554);
+	//XGpio_DiscreteWrite(&gpioFftConfig, 1, 0b11);
+	// send valid signal
+	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b1);
+	return 0;
+}
+
 
 // This function is a loop to test the audio with GPIO switches.
 void audioLoop() {
@@ -393,3 +527,6 @@ void audioLoop() {
 		}
 	}
 }
+
+
+
