@@ -32,4 +32,11 @@
 // Bit 0: Both
 #define LUI_MEM_AUDIO_CHANNELS	LUI_DDR_BASE_ADDR + 0xC
 
+//defines for memory locations to store audio data
+#define DDR_BASE                  		XPAR_PS7_DDR_0_S_AXI_BASEADDR
+#define TX_BUFFER_BASE             		(DDR_BASE + 0x00100000)
+#define MX_BUFFER_BASE            		(DDR_BASE + 0x00300000)
+#define RX_BUFFER_BASE            		(DDR_BASE + 0x00400000)
+#define RX_SHIFT_BUFFER_BASE      		(DDR_BASE + 0x00500000)
+
 #endif /* SRC_LUIMEMORYLOCATIONS_H_ */

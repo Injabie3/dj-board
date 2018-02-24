@@ -7,16 +7,22 @@ LD_SRCS += \
 ../src/lscript.ld 
 
 C_SRCS += \
+../src/audioCodecCom.c \
+../src/fftCom.c \
 ../src/helloworld.c \
 ../src/luiInterrupts.c \
 ../src/platform.c 
 
 OBJS += \
+./src/audioCodecCom.o \
+./src/fftCom.o \
 ./src/helloworld.o \
 ./src/luiInterrupts.o \
 ./src/platform.o 
 
 C_DEPS += \
+./src/audioCodecCom.d \
+./src/fftCom.d \
 ./src/helloworld.d \
 ./src/luiInterrupts.d \
 ./src/platform.d 

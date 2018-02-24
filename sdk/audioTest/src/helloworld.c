@@ -55,13 +55,14 @@
 //#include "xintc.h"
 #include "xscugic.h" 				// Interrupt controller drivers.
 #include "xaxidma.h" 				// DMA drivers.
-#include "Xil_exception.h"
+#include "xil_exception.h"
 #include "luiInterrupts.h" 			// Contains interrupt-related setup.
 #include "luiMemoryLocations.h"		// Custom memory location mappings.
+#include "audioCodecCom.h"
 
 
 // Here we have some defines, pretty self-explanatory here.
-volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
+
 #define MIDDLEC_ADDRESS 				XPAR_AXI_GPIO_MIDDLEC_BASEADDR
 #define DEVICE_ID_MIDDLEC 				XPAR_AXI_GPIO_MIDDLEC_DEVICE_ID
 #define DEVICE_ID_SWITCHES 				XPAR_AXI_GPIO_SWITCHES_DEVICE_ID
@@ -71,19 +72,14 @@ volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 #define DEVICE_ID_INTERRUPTCONTROLLER	XPAR_INTC_0_DEVICE_ID
 #define DEVICE_ID_DMA					XPAR_AXIDMA_0_DEVICE_ID
 #define DEVICE_ID_TIMER					XPAR_PS7_SCUTIMER_0_DEVICE_ID
-#define DDR_BASE                  		XPAR_PS7_DDR_0_S_AXI_BASEADDR
-#define TX_BUFFER_BASE             		(DDR_BASE + 0x00100000)
-#define MX_BUFFER_BASE            		(DDR_BASE + 0x00300000)
-#define RX_BUFFER_BASE            		(DDR_BASE + 0x00400000)
-#define RX_SHIFT_BUFFER_BASE      		(DDR_BASE + 0x00500000)
+
 
 //#define INTERRUPTCONTROLLER_ADDRESS		XPAR_AXI_INTC_0_BASEADDR
 
 static XGpio gpioMiddleC; 					// AXI GPIO object for the middle C note.
 static XGpio gpioSwitches;					// AXI GPIO object for the switches
 static XGpio gpioPushButtons; 				// AXI GPIO object for the push buttons
-static XGpio gpioFftConfig;					// AXI GPIO object for the FFT configuration.
-static XAxiDma axiDma;						// AXI DMA object that is tied with the FFT core.
+
 //XIntc interruptController; 				// AXI Interrupt Controller object.
 static XScuGic_Config *interruptControllerConfig;
 static XScuGic psInterruptController;
@@ -95,9 +91,7 @@ int switches;
 
 // This function is responsible for getting data from audio FIFO 64 samples at a time
 // stores 64 samples in memory then sends it to FFT, then to IFFT
-void audioDriver();
-void getAudioData();
-void sendAudioData();
+
 // Initialize GPIO peripherals and the PS interrupt controller
 int initializePeripherals();
 
@@ -165,14 +159,12 @@ int main()
 	TxBufferPtr[6] = 0x0000000013c73cde;
 	TxBufferPtr[7] = 0x00000000c0caf5fd;*/
 
-	audioDriver();
+	audioDriver(); // all the ADC/DAC read/write and FFT stuff taken out of here
 
 
 	xil_printf("Successfully ran XAxiDma_SimplePoll Example\r\n");
 
-	AUDIOCHIP[0] = 3; // Reset FIFOs.
-
-	audioLoop();
+	//audioLoop();
 
 	cleanup_platform();
 	return 0;
@@ -254,276 +246,53 @@ int initializePeripherals() {
 	return status;
 }
 
-void audioDriver() {
-// first step is to read in 64 samples from
-
-	u32 dataIn = 0;
-	u32 dataOut = 0;
-	u32 temp = 0;
-	u32 tempLeft = 0;
-	u32 tempRight = 0;
-
-	int configStatus, status;
-
-	volatile u64 *TxBufferPtr;
-    volatile u64 *MxBufferPtr;
-    volatile u64 *RxBufferPtr;
-	volatile u64 *RxShiftBufferPtr;
-
-    TxBufferPtr = (u64 *)TX_BUFFER_BASE;
-    MxBufferPtr = (u64 *)MX_BUFFER_BASE;
-    RxBufferPtr = (u64 *)RX_BUFFER_BASE;
-	RxShiftBufferPtr = (u64 *)RX_SHIFT_BUFFER_BASE;
-	// loop on audio
-	while (1) {
-		//keep looping until we've read in 64 data samples
-		dataIn = 0;
-		while (dataIn < 64){
-			// check if the ADC FIFO is not empty
-			if ((AUDIOCHIP[0] & 1<<2)==0){
-				// get right and left channel
-				// pad with 0s for 64bit input to FFT
-				//0000RRRR0000LLLL
-				temp = AUDIOCHIP[2];
-				tempRight = temp & 0xFFFF0000;
-				tempLeft = temp & 0xFFFF;
-				tempRight>>=16;
-				TxBufferPtr[dataIn] = (((u64)tempRight << 32) | tempLeft);
-				dataIn++;
-			}
-		}
-		configStatus = XGpio_FftConfig();
-		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, TxBufferPtr, MxBufferPtr);
-
-		if (status != XST_SUCCESS) {
-			xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
-		return XST_FAILURE;
-		}
-		// want to convert data back so we send it through IFFT
-
-		configStatus = XGpio_IFftConfig();
-		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, RxBufferPtr);
-
-		if (status != XST_SUCCESS) {
-				xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
-				return XST_FAILURE;
-			}
-		//need to convert output because it is shifted by 3 bits
-		shiftBits(RxBufferPtr);
-		dataOut = 0;
-		//now we want to check the DAC
-		while(dataOut < 64){
-			// if DAC FIFO is not FULL we can write data to it
-			if ((AUDIOCHIP[0] & 1<<5)==0) {
-				tempRight = RxShiftBufferPtr[dataOut]>>16;
-				tempLeft = RxShiftBufferPtr[dataOut];
-				temp = (tempRight & 0xFFFF0000)| (tempLeft & 0xFFFF);
-				AUDIOCHIP[1] = temp;
-				dataOut++;
-			}
-		}
-
-	}
-}
-
-void shiftBits(volatile u64* RxBuf){
-
-	const uint POINT_SIZE = 64;
-	volatile u64 *RxShiftBufferPtr;
-	u64 temp[POINT_SIZE];
-	RxShiftBufferPtr = (u64 *)RX_SHIFT_BUFFER_BASE;
-
-	for (int i=0;i<POINT_SIZE;i++){
-		temp[i] = (RxBuf[i] << 6) & 0xFFFF; // the LSB part
-		temp[i] = (((RxBuf[i] & 0xFFFF0000) << 6) & 0xFFFF0000) | temp[i]; // concatenating as we go
-		temp[i] = (((RxBuf[i] & 0xFFFF00000000) << 6) & 0xFFFF00000000) | temp[i];
-		//for the last one do we need to & it again ? i don't think so lol
-		temp[i] = ((RxBuf[i] & 0xFFFF000000000000) << 6) | temp[i];
-
-		if (i==0)
-			RxShiftBufferPtr[i] = temp[i];
-		else {
-			RxShiftBufferPtr[POINT_SIZE-i] = temp[i];
-		}
-	}
-	// now need to swap the order  of the bits
-
-
-
-}
-
-// This function does the following:
-// - Initializes the DMA.
-// - Populates DDR with a test vector.
-// - Does a data transfer to and from the FFT core via the DMA
-//   to perform a forward FFT.
-int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* TxBuf, volatile u64* RxBuf){
-
-
-	// making these pointers global for the purpose of using same FFT core for forward and inverse
-
-
-	//****************** Configure the DMA ***********************************/
-	/********************Using Xilinx Sample code provided for simple polling example********************/
-	XAxiDma_Config *CfgPtr;
-	int Status;
-	//int Tries = NUMBER_OF_TRANSFERS;
-	/* Initialize the XAxiDma device.
-	 */
-	CfgPtr = XAxiDma_LookupConfig(DeviceId);
-	if (!CfgPtr) {
-		xil_printf("No config found for %d\r\n", DeviceId);
-		return XST_FAILURE;
-	}
-
-	Status = XAxiDma_CfgInitialize(&axiDma, CfgPtr);
-	if (Status != XST_SUCCESS) {
-		xil_printf("Initialization failed %d\r\n", Status);
-		return XST_FAILURE;
-	}
-
-	if(XAxiDma_HasSg(&axiDma)){
-		xil_printf("Device configured as SG mode \r\n");
-		return XST_FAILURE;
-	}
-
-	/* Disable interrupts, we use polling mode
-	 */
-	XAxiDma_IntrDisable(&axiDma, XAXIDMA_IRQ_ALL_MASK,
-						XAXIDMA_DEVICE_TO_DMA);
-	XAxiDma_IntrDisable(&axiDma, XAXIDMA_IRQ_ALL_MASK,
-						XAXIDMA_DMA_TO_DEVICE);
-
-	//Value = TEST_START_VALUE;
-
-
-	// flush the cache
-	Xil_DCacheFlushRange((UINTPTR)TxBuf, 0x200);
-	//#ifdef __aarch64__
-		Xil_DCacheFlushRange((UINTPTR)RxBuf, 0x200);
-	//#endif
-
-		/**********************Start data transfer with FFT***************************/
-		//
-			Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) RxBuf,
-						0x200, XAXIDMA_DEVICE_TO_DMA);
-
-			if (Status != XST_SUCCESS) {
-				return XST_FAILURE;
-			}
-
-			Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) TxBuf,
-					0x200, XAXIDMA_DMA_TO_DEVICE);
-
-			if (Status != XST_SUCCESS) {
-				return XST_FAILURE;
-			}
-
-			// loop while DMA is busy
-			while ((XAxiDma_Busy(&axiDma,XAXIDMA_DEVICE_TO_DMA)) ||
-						(XAxiDma_Busy(&axiDma,XAXIDMA_DMA_TO_DEVICE))) {
-							/* Wait */
-					}
-
-	return 0;
-}
-
-
-
-
-// This function sets up the FFT core
-
-int XGpio_FftConfig() {
-
-	/***********************Initialize GPIO**************************/
-	int status = XGpio_Initialize(&gpioFftConfig, DEVICE_ID_FFT_GPIO);
-	if (status != XST_SUCCESS ){
-		xil_printf("Initialization failed %d\r\n", status);
-		return XST_FAILURE;
-	}
-
-	/********************Configure the FFT***********************/
-	// configure forward FFT for each channel
-	// this is configuring for 010101...
-	// top 2 channels are IFFT bottom 2 are forward FFT
-	XGpio_DiscreteWrite(&gpioFftConfig, 1, 0x1555557);
-	//XGpio_DiscreteWrite(&gpioFftConfig, 1, 0b11);
-	// send valid signal
-	// concatenated to the config
-	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b1);
-
-
-	return 0;
-}
-
-
-int XGpio_IFftConfig() {
-
-	/***********************Initialize GPIO**************************/
-	int status = XGpio_Initialize(&gpioFftConfig, DEVICE_ID_FFT_GPIO);
-	if (status != XST_SUCCESS ){
-		xil_printf("Initialization failed %d\r\n", status);
-		return XST_FAILURE;
-	}
-
-	/********************Configure the FFT***********************/
-	// configure forward FFT for each channel
-	// this is configuring for 010101...
-	// top 2 channels are IFFT bottom 2 are forward FFT
-	XGpio_DiscreteWrite(&gpioFftConfig, 1, 0x1555554);
-	//XGpio_DiscreteWrite(&gpioFftConfig, 1, 0b11);
-	// send valid signal
-	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b1);
-	return 0;
-}
-
 // This function is a loop to test the audio with GPIO switches.
-void audioLoop() {
-	int tone = 0;
-	u32* audioChannels = (u32 *) LUI_MEM_AUDIO_CHANNELS;
-	u32* psPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTONS;
-	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
-	while (1) {
-		// WAIT FOR DAC FIFO TO BE EMPTY.
-
-		if ((AUDIOCHIP[0] & 1<<3)!=0) {
-			// Transmit Line-In to HP Out.
-			if (*audioChannels == 0b001 || switches == 0xC1) {
-				AUDIOCHIP[1] = AUDIOCHIP[2];
-			}
-			else if (!1) {
-				// Play middle C
-				XGpio_SetDataDirection(&gpioMiddleC, 1, 0xFFFF); // Set as input
-				tone =  XGpio_DiscreteRead(&gpioMiddleC, 1);
-				AUDIOCHIP[1] = tone >> 5  | tone << 11; // Send middle C note to headphone out.  We shift 16 bits to cover the right channel as well.
-				// AUDIOCHIP[1] = AUDIOCHIP[2] >> 16 | AUDIOCHIP[2] << 16;
-			}
-			else if (*plPushButtonEnabled == 1) {
-				// Overlay middle C
-				XGpio_SetDataDirection(&gpioMiddleC, 1, 0xFFFF); // Set as input
-				tone =  XGpio_DiscreteRead(&gpioMiddleC, 1);
-				AUDIOCHIP[1] = AUDIOCHIP[2] + (tone >> 6 | tone << 10);
-			}
-			else if (*audioChannels == 0b010) {
-				// Output only right channel
-				AUDIOCHIP[1] = AUDIOCHIP[2] & 0xFFFF0000;
-			}
-			else if (*audioChannels == 0b100) {
-				// Output only left channel
-				AUDIOCHIP[1] = AUDIOCHIP[2] & 0xFFFF;
-			}
-			else {
-				AUDIOCHIP[1] = AUDIOCHIP[2];
-
-			}
-
-			XGpio_SetDataDirection(&gpioMiddleC, 1, 0x0); // Set as output
-			// Set increment bit of middle C core.
-			XGpio_DiscreteWrite(&gpioMiddleC, 1, 0x1);
-			// Channel 2 controls the "clock", I toggle it here to "increment" it.
-			// This is for demonstration purposes, since I highly doubt we want the PS to toggle "clocks" for us.
-			XGpio_DiscreteWrite(&gpioMiddleC, 2, 0x0);
-			XGpio_DiscreteWrite(&gpioMiddleC, 2, 0x1);
-		}
-	}
-}
+//void audioLoop() {
+//	int tone = 0;
+//	u32* audioChannels = (u32 *) LUI_MEM_AUDIO_CHANNELS;
+//	u32* psPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTONS;
+//	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
+//	while (1) {
+//		// WAIT FOR DAC FIFO TO BE EMPTY.
+//
+//		if ((AUDIOCHIP[0] & 1<<3)!=0) {
+//			// Transmit Line-In to HP Out.
+//			if (*audioChannels == 0b001 || switches == 0xC1) {
+//				AUDIOCHIP[1] = AUDIOCHIP[2];
+//			}
+//			else if (!1) {
+//				// Play middle C
+//				XGpio_SetDataDirection(&gpioMiddleC, 1, 0xFFFF); // Set as input
+//				tone =  XGpio_DiscreteRead(&gpioMiddleC, 1);
+//				AUDIOCHIP[1] = tone >> 5  | tone << 11; // Send middle C note to headphone out.  We shift 16 bits to cover the right channel as well.
+//				// AUDIOCHIP[1] = AUDIOCHIP[2] >> 16 | AUDIOCHIP[2] << 16;
+//			}
+//			else if (*plPushButtonEnabled == 1) {
+//				// Overlay middle C
+//				XGpio_SetDataDirection(&gpioMiddleC, 1, 0xFFFF); // Set as input
+//				tone =  XGpio_DiscreteRead(&gpioMiddleC, 1);
+//				AUDIOCHIP[1] = AUDIOCHIP[2] + (tone >> 6 | tone << 10);
+//			}
+//			else if (*audioChannels == 0b010) {
+//				// Output only right channel
+//				AUDIOCHIP[1] = AUDIOCHIP[2] & 0xFFFF0000;
+//			}
+//			else if (*audioChannels == 0b100) {
+//				// Output only left channel
+//				AUDIOCHIP[1] = AUDIOCHIP[2] & 0xFFFF;
+//			}
+//			else {
+//				AUDIOCHIP[1] = AUDIOCHIP[2];
+//
+//			}
+//
+//			XGpio_SetDataDirection(&gpioMiddleC, 1, 0x0); // Set as output
+//			// Set increment bit of middle C core.
+//			XGpio_DiscreteWrite(&gpioMiddleC, 1, 0x1);
+//			// Channel 2 controls the "clock", I toggle it here to "increment" it.
+//			// This is for demonstration purposes, since I highly doubt we want the PS to toggle "clocks" for us.
+//			XGpio_DiscreteWrite(&gpioMiddleC, 2, 0x0);
+//			XGpio_DiscreteWrite(&gpioMiddleC, 2, 0x1);
+//		}
+//	}
+//}
