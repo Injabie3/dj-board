@@ -96,8 +96,8 @@ int switches;
 // This function is responsible for getting data from audio FIFO 64 samples at a time
 // stores 64 samples in memory then sends it to FFT, then to IFFT
 void audioDriver();
-void getAudioData(); 
-void sendAudioData(); 
+void getAudioData();
+void sendAudioData();
 // Initialize GPIO peripherals and the PS interrupt controller
 int initializePeripherals();
 
@@ -121,13 +121,12 @@ int XGpio_IFftConfig();
 //This function is to shift the IFFT output back
 void shiftBits(volatile u64* RxBuf);
 
-
 // This function is a loop to test the audio with GPIO switches.
 void audioLoop();
 
 int main()
 {
-
+	int status;
     init_platform();
 
     initializePeripherals();
@@ -145,6 +144,8 @@ int main()
 
 	// Set up interrupt handler for PS Timer
 	setupInterruptSystemTimerPs(&psInterruptController, &psTimer, XPAR_SCUTIMER_INTR, timerInterruptHandler);
+	interruptSetTimer(&psTimer);
+	interruptSetGpioPsPushButtons(&gpioPSPushButtons);
 
 	// Enable the interrupts, and away we go!
 	registerInterruptHandler(&psInterruptController);
@@ -154,30 +155,27 @@ int main()
 
     print("Hello World\n\r");
 
-
-
-
     // test data
-    /*TxBufferPtr[0] = 0x0000000000004000;
-    TxBufferPtr[1] = 0x00000000c6fae2f2;
-    TxBufferPtr[2] = 0x0000000033c7da62;
-    TxBufferPtr[3] = 0x000000000a033f36;
-    TxBufferPtr[4] = 0x00000000c322ec39;
-    TxBufferPtr[5] = 0x000000002d41d2bf;
-    TxBufferPtr[6] = 0x0000000013c73cde;
-    TxBufferPtr[7] = 0x00000000c0caf5fd;*/
+	/*TxBufferPtr[0] = 0x0000000000004000;
+	TxBufferPtr[1] = 0x00000000c6fae2f2;
+	TxBufferPtr[2] = 0x0000000033c7da62;
+	TxBufferPtr[3] = 0x000000000a033f36;
+	TxBufferPtr[4] = 0x00000000c322ec39;
+	TxBufferPtr[5] = 0x000000002d41d2bf;
+	TxBufferPtr[6] = 0x0000000013c73cde;
+	TxBufferPtr[7] = 0x00000000c0caf5fd;*/
 
-    audioDriver();
+	audioDriver();
 
 
 	xil_printf("Successfully ran XAxiDma_SimplePoll Example\r\n");
 
-    AUDIOCHIP[0] = 3; // Reset FIFOs.
+	AUDIOCHIP[0] = 3; // Reset FIFOs.
 
-    audioLoop();
+	audioLoop();
 
-    cleanup_platform();
-    return 0;
+	cleanup_platform();
+	return 0;
 }
 
 // Initialize GPIO peripherals and the PS interrupt controller
@@ -479,11 +477,12 @@ int XGpio_IFftConfig() {
 	return 0;
 }
 
-
 // This function is a loop to test the audio with GPIO switches.
 void audioLoop() {
 	int tone = 0;
 	u32* audioChannels = (u32 *) LUI_MEM_AUDIO_CHANNELS;
+	u32* psPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTONS;
+	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
 	while (1) {
 		// WAIT FOR DAC FIFO TO BE EMPTY.
 
@@ -492,11 +491,14 @@ void audioLoop() {
 			if (*audioChannels == 0b001 || switches == 0xC1) {
 				AUDIOCHIP[1] = AUDIOCHIP[2];
 			}
-			else if (switches == 0x3) {
-				// Swap left and right channels.
-				AUDIOCHIP[1] = AUDIOCHIP[2] >> 16 | AUDIOCHIP[2] << 16;
+			else if (!1) {
+				// Play middle C
+				XGpio_SetDataDirection(&gpioMiddleC, 1, 0xFFFF); // Set as input
+				tone =  XGpio_DiscreteRead(&gpioMiddleC, 1);
+				AUDIOCHIP[1] = tone >> 5  | tone << 11; // Send middle C note to headphone out.  We shift 16 bits to cover the right channel as well.
+				// AUDIOCHIP[1] = AUDIOCHIP[2] >> 16 | AUDIOCHIP[2] << 16;
 			}
-			else if (switches == 0x7) {
+			else if (*plPushButtonEnabled == 1) {
 				// Overlay middle C
 				XGpio_SetDataDirection(&gpioMiddleC, 1, 0xFFFF); // Set as input
 				tone =  XGpio_DiscreteRead(&gpioMiddleC, 1);
@@ -511,9 +513,7 @@ void audioLoop() {
 				AUDIOCHIP[1] = AUDIOCHIP[2] & 0xFFFF;
 			}
 			else {
-				XGpio_SetDataDirection(&gpioMiddleC, 1, 0xFFFF); // Set as input
-				tone =  XGpio_DiscreteRead(&gpioMiddleC, 1);
-				AUDIOCHIP[1] = tone >> 5  | tone << 11; // Send middle C note to headphone out.  We shift 16 bits to cover the right channel as well.
+				AUDIOCHIP[1] = AUDIOCHIP[2];
 
 			}
 
@@ -527,6 +527,3 @@ void audioLoop() {
 		}
 	}
 }
-
-
-

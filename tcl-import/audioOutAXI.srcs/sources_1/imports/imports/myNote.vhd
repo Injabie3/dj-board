@@ -13,7 +13,7 @@ entity myNote is
 		increment: in std_logic; -- ENable
 		amplHigh: in signed (busWidth-1 downto 0);
 		amplLow: in signed (busWidth-1 downto 0);
-		output: out signed(busWidth-1 downto 0)
+		myOutput: out signed(busWidth-1 downto 0)
 		);
 end myNote;
 
@@ -37,9 +37,9 @@ begin
 	process(noteRegister, amplLow, amplHigh)
 	begin
 		if(noteRegister >= sampleSize/2) then
-			output <= amplLow;
+			myOutput <= amplLow;
 		else
-			output <= amplHigh;
+			myOutput <= amplHigh;
 		end if;
 	end process;
 	

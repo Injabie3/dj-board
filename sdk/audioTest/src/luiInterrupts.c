@@ -19,8 +19,16 @@
 #include "Xil_exception.h"
 #include "luiMemoryLocations.h"
 
-// Global variable
-u8 ignoreButtonPress;
+// ####################
+// # GLOBAL VARIABLES #
+// ####################
+int ignoreButtonPress = 0;
+int currentButtonState = 0;
+XScuTimer* timerPointer;
+XGpioPs* gpioPsPushButtons;
+XGpio* gpioPushButtons;
+XGpio* gpioSwitches;
+
 
 // ##############################
 // # INTERRUPT SET UP FUNCTIONS #
@@ -208,6 +216,7 @@ void registerInterruptHandler(XScuGic* interruptController) {
 // This function is what will get called when an interrupt occurs from the switches
 void gpioSwitchesInterruptHandler(void *CallbackRef) {
 	XGpio *gpioPointer = (XGpio *) CallbackRef;
+
 	int switches = XGpio_DiscreteRead(gpioPointer, 1);
 	int switchVar = switches;
 	u32* audioChannels = (u32 *) LUI_MEM_AUDIO_CHANNELS;
@@ -227,12 +236,13 @@ void gpioSwitchesInterruptHandler(void *CallbackRef) {
 	// Clear the interrupt!!
 	XGpio_InterruptClear(gpioPointer, 1);
 	//XIntc_Acknowledge(&interruptController, 0);
-	print("Success! Switch interrupts work!\r\n");
+	print("Success! PL Switch interrupts work!\r\n");
 }
 
 // This function is what will get called when an interrupt occurs from the 5 push buttons on the PL side.
 void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 	XGpio *gpioPointer = (XGpio *) CallbackRef;
+	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
 
 	// Get the buttons that are pushed down.
 	u32 buttonStatus = XGpio_DiscreteRead(gpioPointer, 1);
@@ -245,29 +255,46 @@ void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 	// Bit 4: BTNU
 	if ((buttonStatus & 0b11111) != 0x0) {
 		print("PL button pressed!\n\r");
+		*plPushButtonEnabled = 1;
 	}
 	else {
 		print("PL button released!\n\r");
+		*plPushButtonEnabled = 0;
 	}
+
+	print("Success! PL Push Button interrupts work!\r\n");
 	// Clear the interrupt!
 	XGpio_InterruptClear(gpioPointer, 1);
 	return;
 }
 
 // This function is what will get called when an interrupt occurs from the 2 push buttons on the PS side.
-// TODO Find a way to be able to reference the timer in this interrupt handler.
 void gpioPushButtonsPSInterruptHandler(void *CallbackRef) {
 	XGpioPs* gpio = (XGpioPs*) CallbackRef;
+	u32* psPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTONS;
+	u32 leftButton = XGpioPs_ReadPin(gpio, 50);
+	u32 rightButton = XGpioPs_ReadPin(gpio, 51);
 
-//	if (ignoreButtonPress == 0) {
-//		ignoreButtonPress = 1;
-		print("PS Button pressed!\n\r");
-//		XScuTimer_LoadTimer(&psTimer, 5000);
-//	}
+	if (ignoreButtonPress == 0) {
+		if(leftButton == 1 || rightButton == 1) {
+			print("PS Button pressed!\n\r");
+			*psPushButtonEnabled = 1;
+		}
+		else {
+			print("PS Button released!\n\r");
+			*psPushButtonEnabled = 0;
+		}
+		if (timerPointer) {
+			ignoreButtonPress = 1;
+			XScuTimer_LoadTimer(timerPointer, 0x1FFFFFF);
+			XScuTimer_Start(timerPointer);
+		}
+	}
 
+	print("Success! PS Push Button interrupts work!\r\n");
 
 	// Clear the interrupt!
-	// TODO: Remove the hardcoded MIO pins.
+	// MIO 50 - Left button | MIO 51 - Right button
 	XGpioPs_IntrClearPin(gpio, 50);
 	XGpioPs_IntrClearPin(gpio, 51);
 
@@ -277,14 +304,32 @@ void gpioPushButtonsPSInterruptHandler(void *CallbackRef) {
 // This function is what will get called when the timer interrupt occurs.
 void timerInterruptHandler(void *CallbackRef) {
 	XScuTimer* timer = (XScuTimer *) CallbackRef;
-
-	if (ignoreButtonPress == 0) {
-		ignoreButtonPress = 1;
+	if (ignoreButtonPress == 1) {
+		ignoreButtonPress = 0;
 
 	}
-	// Stub function for now.
 
 	// Clear the interrupt!
 	XScuTimer_ClearInterruptStatus(timer);
 	return;
+}
+
+// #############################
+// # GPIO/TIMER OBJECT SETTERS #
+// #############################
+// Allows for interrupt handlers to reference each other.
+
+// This function takes in the timer object pointer, and enables the PS push buttons to be debounced.
+void interruptSetTimer(XScuTimer* timer) {
+	timerPointer = timer;
+}
+
+// This function takes in the GPIO switches object pointer, and sets it to allow other interrupt handlers to reference it if needed.
+void interruptSetGpioSwitches(XGpio* switches) {
+	gpioSwitches = switches;
+}
+
+// This function takes in the GPIO PS switches object pointer, and sets it to allow other interrupt handlers to reference it if needed.
+void interruptSetGpioPsPushButtons(XGpioPs* pushButtons) {
+	gpioPsPushButtons = pushButtons;
 }

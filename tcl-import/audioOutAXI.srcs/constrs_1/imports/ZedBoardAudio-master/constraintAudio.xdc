@@ -32,4 +32,18 @@ set_property PACKAGE_PIN R16 [get_ports {btns_5bits[1]}];  # "BTND"
 set_property PACKAGE_PIN N15 [get_ports {btns_5bits[2]}];  # "BTNL"
 set_property PACKAGE_PIN R18 [get_ports {btns_5bits[3]}];  # "BTNR"
 set_property PACKAGE_PIN T18 [get_ports {btns_5bits[4]}];  # "BTNU"
-set_property IOSTANDARD LVCMOS25 [get_ports -of_objects [get_iobanks 34]];
+
+# ----------------------------------------------------------------------------
+# User DIP Switches - Bank 35
+# ---------------------------------------------------------------------------- 
+set_property PACKAGE_PIN F22 [get_ports {sws_8bits[0]}];  # "SW0"
+set_property PACKAGE_PIN G22 [get_ports {sws_8bits[1]}];  # "SW1"
+set_property PACKAGE_PIN H22 [get_ports {sws_8bits[2]}];  # "SW2"
+set_property PACKAGE_PIN F21 [get_ports {sws_8bits[3]}];  # "SW3"
+set_property PACKAGE_PIN H19 [get_ports {sws_8bits[4]}];  # "SW4"
+set_property PACKAGE_PIN H18 [get_ports {sws_8bits[5]}];  # "SW5"
+set_property PACKAGE_PIN H17 [get_ports {sws_8bits[6]}];  # "SW6"
+set_property PACKAGE_PIN M15 [get_ports {sws_8bits[7]}];  # "SW7"
+
+set_property IOSTANDARD LVCMOS18 [get_ports -of_objects [get_iobanks 34]];
+set_property IOSTANDARD LVCMOS18 [get_ports -of_objects [get_iobanks 35]];

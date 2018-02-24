@@ -86,4 +86,13 @@ void gpioPushButtonsPSInterruptHandler(void *CallbackRef);
 // This function is what will get called when the timer interrupt occurs.
 void timerInterruptHandler(void *CallbackRef);
 
+// This function takes in the timer object pointer, and enables the PS push buttons to be debounced.
+void interruptSetTimer(XScuTimer* timer);
+
+// This function takes in the GPIO switches object pointer, and sets it to allow other interrupt handlers to reference it if needed.
+void interruptSetGpioSwitches(XGpio* switches);
+
+// This function takes in the GPIO PS switches object pointer, and sets it to allow other interrupt handlers to reference it if needed.
+void interruptSetGpioPsPushButtons(XGpioPs* pushButtons);
+
 #endif /* SRC_LUIINTERRUPTS_H_ */
