@@ -11,7 +11,9 @@ int XGpio_IFftConfig();
 
 
 // function to shift the bits of the IFFT output data before sending back to Codec
-void shiftBits(volatile u64* RxBuf);
+void shiftBits(volatile u64* bufferToShift, volatile u64* bufferToStoreIn);
+
+void shiftBitsRight(volatile u64* bufferToShift, volatile u64* bufferToStoreIn);
 
 
 // This function does the following:
@@ -19,6 +21,6 @@ void shiftBits(volatile u64* RxBuf);
 // - Populates DDR with a test vector.
 // - Does a data transfer to and from the FFT core via the DMA
 //   to perform a forward FFT.
-int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* TxBuf, volatile u64* RxBuf);
+int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u64* outputBuffer);
 
 #endif

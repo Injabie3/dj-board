@@ -9,24 +9,53 @@ static XGpio gpioFftConfig;					// AXI GPIO object for the FFT configuration.
 static XAxiDma axiDma;						// AXI DMA object that is tied with the FFT core.
 
 
-void shiftBits(volatile u64* RxBuf){
+void shiftBits(volatile u64* bufferToShift, volatile u64* bufferToStoreIn) {
 
-	const uint POINT_SIZE = 64;
-	volatile u64 *RxShiftBufferPtr;
+	// Some easy constants to adjust.
+	const uint POINT_SIZE = 256;
+	const uint BITS_TO_SHIFT = 0;
+
+
 	u64 temp[POINT_SIZE];
-	RxShiftBufferPtr = (u64 *)RX_SHIFT_BUFFER_BASE;
 
-	for (int i=0;i<POINT_SIZE;i++){
-		temp[i] = (RxBuf[i] << 6) & 0xFFFF; // the LSB part
-		temp[i] = (((RxBuf[i] & 0xFFFF0000) << 6) & 0xFFFF0000) | temp[i]; // concatenating as we go
-		temp[i] = (((RxBuf[i] & 0xFFFF00000000) << 6) & 0xFFFF00000000) | temp[i];
+	for (int i=0; i < POINT_SIZE; i++) {
+		temp[i] = (bufferToShift[i] << BITS_TO_SHIFT) & 0xFFFF; // the LSB part
+		temp[i] = (((bufferToShift[i] & 0xFFFF0000) << BITS_TO_SHIFT) & 0xFFFF0000) | temp[i]; // concatenating as we go
+		temp[i] = (((bufferToShift[i] & 0xFFFF00000000) << BITS_TO_SHIFT) & 0xFFFF00000000) | temp[i];
 		//for the last one do we need to & it again ? i don't think so lol
-		temp[i] = ((RxBuf[i] & 0xFFFF000000000000) << 6) | temp[i];
+		temp[i] = ((bufferToShift[i] & 0xFFFF000000000000) << BITS_TO_SHIFT) | temp[i];
 
 		if (i==0)
-			RxShiftBufferPtr[i] = temp[i];
+			bufferToStoreIn[i] = temp[i];
 		else {
-			RxShiftBufferPtr[POINT_SIZE-i] = temp[i];
+			bufferToStoreIn[POINT_SIZE-i] = temp[i];
+		}
+	}
+	// now need to swap the order  of the bits
+
+
+
+}
+
+void shiftBitsRight(volatile u64* bufferToShift, volatile u64* bufferToStoreIn) {
+
+	// Some easy constants to adjust.
+	const uint POINT_SIZE = 64;
+	const uint BITS_TO_SHIFT = 5;
+
+
+	u64 temp[POINT_SIZE];
+
+	for (int i=0; i < POINT_SIZE; i++) {
+		temp[i] = (bufferToShift[i] >> BITS_TO_SHIFT) & 0xFFFF000000000000;
+		temp[i] = (((bufferToShift[i] & 0xFFFF00000000) >> BITS_TO_SHIFT) & 0xFFFF00000000) | temp[i];
+		temp[i] = (((bufferToShift[i] & 0xFFFF0000) >> BITS_TO_SHIFT) & 0xFFFF0000) | temp[i]; // concatenating as we go
+		temp[i] = ((bufferToShift[i] & 0xFFFF ) >> BITS_TO_SHIFT) | temp[i]; // the LSB part
+
+		if (i==0)
+			bufferToStoreIn[i] = temp[i];
+		else {
+			bufferToStoreIn[POINT_SIZE-i] = temp[i];
 		}
 	}
 	// now need to swap the order  of the bits
@@ -40,7 +69,7 @@ void shiftBits(volatile u64* RxBuf){
 // - Populates DDR with a test vector.
 // - Does a data transfer to and from the FFT core via the DMA
 //   to perform a forward FFT.
-int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* TxBuf, volatile u64* RxBuf){
+int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u64* outputBuffer) {
 
 
 	// making these pointers global for the purpose of using same FFT core for forward and inverse
@@ -81,38 +110,41 @@ int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* TxBuf, volatile u64* RxB
 
 
 	// flush the cache
-	Xil_DCacheFlushRange((UINTPTR)TxBuf, 0x200);
+	Xil_DCacheFlushRange((UINTPTR)inputBuffer, 0x800);
 	//#ifdef __aarch64__
-		Xil_DCacheFlushRange((UINTPTR)RxBuf, 0x200);
+	Xil_DCacheFlushRange((UINTPTR)outputBuffer, 0x800);
 	//#endif
 
-		/**********************Start data transfer with FFT***************************/
-		//
-			Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) RxBuf,
-						0x200, XAXIDMA_DEVICE_TO_DMA);
+	/**********************Start data transfer with FFT***************************/
+	//
+	Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) outputBuffer,
+				0x800, XAXIDMA_DEVICE_TO_DMA);
 
-			if (Status != XST_SUCCESS) {
-				return XST_FAILURE;
-			}
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
 
-			Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) TxBuf,
-					0x200, XAXIDMA_DMA_TO_DEVICE);
+	Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) inputBuffer,
+			0x800, XAXIDMA_DMA_TO_DEVICE);
 
-			if (Status != XST_SUCCESS) {
-				return XST_FAILURE;
-			}
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
 
-			// loop while DMA is busy
-			while ((XAxiDma_Busy(&axiDma,XAXIDMA_DEVICE_TO_DMA)) ||
-						(XAxiDma_Busy(&axiDma,XAXIDMA_DMA_TO_DEVICE))) {
-							/* Wait */
-					}
+	// loop while DMA is busy
+	while ((XAxiDma_Busy(&axiDma,XAXIDMA_DEVICE_TO_DMA)) ||
+		(XAxiDma_Busy(&axiDma,XAXIDMA_DMA_TO_DEVICE))) {
+			/* Wait */
+	}
 
 	return 0;
 }
 
 
 // This function sets up the FFT core
+
+
+u64 scalingSchedule = 0b0101010100000000;
 
 int XGpio_FftConfig() {
 
@@ -127,11 +159,17 @@ int XGpio_FftConfig() {
 	// configure forward FFT for each channel
 	// this is configuring for 010101...
 	// top 2 channels are IFFT bottom 2 are forward FFT
-	XGpio_DiscreteWrite(&gpioFftConfig, 1, 0x1555557);
+	// 64 point FFT:
+	// shift 1 bit at each stage: 0x1555557
+
+
+	//u32 configData = 0b11 | scalingSchedule << 2 | scalingSchedule << 16; // 128pt FFT
+	u32 configData = 0b11 | scalingSchedule << 2 | scalingSchedule << 18; // 256pt FFT
+	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
 	//XGpio_DiscreteWrite(&gpioFftConfig, 1, 0b11);
 	// send valid signal
 	// concatenated to the config
-	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b1);
+	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b100000001);
 
 
 	return 0;
@@ -151,9 +189,14 @@ int XGpio_IFftConfig() {
 	// configure forward FFT for each channel
 	// this is configuring for 010101...
 	// top 2 channels are IFFT bottom 2 are forward FFT
-	XGpio_DiscreteWrite(&gpioFftConfig, 1, 0x1555554);
+	// 64 point FFT:
+	// shift 1 bit at each stage: 0x1555554
+
+	//u32 configData = 0b00 | scalingSchedule << 2 | scalingSchedule << 16; // 128pt FFT
+	u32 configData = 0b00 | scalingSchedule << 2 | scalingSchedule << 18; // 256pt FFT
+	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
 	//XGpio_DiscreteWrite(&gpioFftConfig, 1, 0b11);
 	// send valid signal
-	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b1);
+	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b100000001);
 	return 0;
 }
