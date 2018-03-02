@@ -70,6 +70,7 @@ int setupInterruptSystemTimerPs(XScuGic* interruptController, XScuTimer* timer, 
 // Registers the interrupt handler in the vector table, and enables IRQ interrupts in the ARM processor.
 void registerInterruptHandler(XScuGic* interruptController);
 
+void setUpInterruptCounters();
 
 // #######################################
 // # INTERRUPT HANDLERS/SERVICE ROUTINES #

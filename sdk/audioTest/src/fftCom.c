@@ -8,11 +8,14 @@
 static XGpio gpioFftConfig;					// AXI GPIO object for the FFT configuration.
 static XAxiDma axiDma;						// AXI DMA object that is tied with the FFT core.
 
+//
+//#define FFT_256		// 256pt FFT bitstream.
+#define FFT_512	// 512pt FFT bitstream.
 
 void shiftBits(volatile u64* bufferToShift, volatile u64* bufferToStoreIn) {
 
 	// Some easy constants to adjust.
-	const uint POINT_SIZE = 256;
+	const uint POINT_SIZE = 512;
 	const uint BITS_TO_SHIFT = 0;
 
 
@@ -110,22 +113,22 @@ int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u6
 
 
 	// flush the cache
-	Xil_DCacheFlushRange((UINTPTR)inputBuffer, 0x800);
+	Xil_DCacheFlushRange((UINTPTR)inputBuffer, 0x1000);
 	//#ifdef __aarch64__
-	Xil_DCacheFlushRange((UINTPTR)outputBuffer, 0x800);
+	Xil_DCacheFlushRange((UINTPTR)outputBuffer, 0x1000);
 	//#endif
 
 	/**********************Start data transfer with FFT***************************/
 	//
 	Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) outputBuffer,
-				0x800, XAXIDMA_DEVICE_TO_DMA);
+				0x1000, XAXIDMA_DEVICE_TO_DMA);
 
 	if (Status != XST_SUCCESS) {
 		return XST_FAILURE;
 	}
 
 	Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) inputBuffer,
-			0x800, XAXIDMA_DMA_TO_DEVICE);
+			0x1000, XAXIDMA_DMA_TO_DEVICE);
 
 	if (Status != XST_SUCCESS) {
 		return XST_FAILURE;
@@ -144,7 +147,8 @@ int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u6
 // This function sets up the FFT core
 
 
-u64 scalingSchedule = 0b0101010100000000;
+u64 scalingSchedule256 = 0b0101010100000000;
+u64 scalingSchedule512 = 0b010101010000000000;
 
 int XGpio_FftConfig() {
 
@@ -164,13 +168,21 @@ int XGpio_FftConfig() {
 
 
 	//u32 configData = 0b11 | scalingSchedule << 2 | scalingSchedule << 16; // 128pt FFT
-	u32 configData = 0b11 | scalingSchedule << 2 | scalingSchedule << 18; // 256pt FFT
-	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
 	//XGpio_DiscreteWrite(&gpioFftConfig, 1, 0b11);
 	// send valid signal
+#ifdef FFT_256
+	u32 configData = 0b11 | scalingSchedule256 << 2 | scalingSchedule256 << 18; // 256pt FFT
+	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
 	// concatenated to the config
 	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b100000001);
+#endif // FFT_256
 
+#ifdef FFT_512
+	u32 configData = 0b11 | scalingSchedule512 << 2 | scalingSchedule512 << 20; // 256pt FFT
+	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
+	// concatenated to the config
+	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b100010101);
+#endif // FFT_512
 
 	return 0;
 }
@@ -193,10 +205,20 @@ int XGpio_IFftConfig() {
 	// shift 1 bit at each stage: 0x1555554
 
 	//u32 configData = 0b00 | scalingSchedule << 2 | scalingSchedule << 16; // 128pt FFT
-	u32 configData = 0b00 | scalingSchedule << 2 | scalingSchedule << 18; // 256pt FFT
-	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
-	//XGpio_DiscreteWrite(&gpioFftConfig, 1, 0b11);
 	// send valid signal
+	//XGpio_DiscreteWrite(&gpioFftConfig, 1, 0b11);
+#ifdef FFT_256
+	u32 configData = 0b00 | scalingSchedule256 << 2 | scalingSchedule256 << 18; // 256pt FFT
+	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
+
 	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b100000001);
+#endif // FFT_256
+
+#ifdef FFT_512
+	u32 configData = 0b00 | scalingSchedule512 << 2 | scalingSchedule512 << 20; // 256pt FFT
+	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
+
+	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b100010101);
+#endif // FFT_512
 	return 0;
 }

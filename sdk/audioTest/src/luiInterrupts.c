@@ -28,6 +28,7 @@ XScuTimer* timerPointer;
 XGpioPs* gpioPsPushButtons;
 XGpio* gpioPushButtons;
 XGpio* gpioSwitches;
+int* pitchCounter;
 
 
 // ##############################
@@ -208,6 +209,10 @@ void registerInterruptHandler(XScuGic* interruptController) {
 	Xil_ExceptionEnable();
 }
 
+void setUpInterruptCounters() {
+	pitchCounter = (int*) PITCH_CNTR_LOCATION;
+	*pitchCounter = 0;
+}
 
 // #######################################
 // # INTERRUPT HANDLERS/SERVICE ROUTINES #
@@ -249,13 +254,24 @@ void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 
 	// From the constraints XDC in Vivado, we have set it as follows:
 	// Bit 0: BTNC
-	// Bit 1: BTND
+	// Bit 1: BTND !!
 	// Bit 2: BTNL
 	// Bit 3: BTNR
-	// Bit 4: BTNU
+	// Bit 4: BTNU !!
+	// want to increase/decrease the pitch
+	// need to check which button is pressed (up or down)
+	// and increment counter based on that
 	if ((buttonStatus & 0b11111) != 0x0) {
 		print("PL button pressed!\n\r");
 		*plPushButtonEnabled = 1;
+		// this tells us that the down button is pressed
+		if ((buttonStatus & (1<<1)) != 0x0) {
+			(*pitchCounter)--;
+		}
+		// this tells us that the UP button is pressed
+		if ((buttonStatus & (1<<4)) != 0x0){
+			(*pitchCounter)++;
+		}
 	}
 	else {
 		print("PL button released!\n\r");

@@ -143,6 +143,7 @@ int main()
 
 	// Enable the interrupts, and away we go!
 	registerInterruptHandler(&psInterruptController);
+	setUpInterruptCounters();
 
 	XScuTimer_LoadTimer(&psTimer, 5000);
 	XScuTimer_Start(&psTimer);

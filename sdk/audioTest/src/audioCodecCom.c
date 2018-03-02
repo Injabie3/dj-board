@@ -16,19 +16,20 @@ volatile u64 *RxBufferPtr = (u64*)RX_BUFFER_BASE;
 volatile u64 *RxShiftBufferPtr = (u64*)RX_SHIFT_BUFFER_BASE;
 volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 
-const int FFT_SIZE = 256;
+
 // QUICK DEBUG SWITCHES
-#define FFT_256_HAMMING	// Apply 256pt hamming.
-//#define FFT_512_HAMMING
+//#define FFT_256_HANNING		// Apply 256pt hanning.
+#define FFT_512_HANNING	// Apply 512pt hanning
 
 //#define FFT_256_NO_WIN // FFT 256pt No Window Overlap
 //#define FFT_256_2_WIN // FFT 256pt 2. Window Overlap
 //#define FFT_256_3_WIN // FFT 256pt 3. Window Overlap
-#define FFT_256_4_WIN // FFT 256pt 4. Window Overlap
+//#define FFT_256_4_WIN // FFT 256pt 4. Window Overlap
 
 //#define FFT_512_2_WIN	// FFT 512pt 2. Window Overlap
 //#define FFT_512_3_WIN // FFT 512pt 3. Window Overlap
-//#define FFT_512_4_WIN // FFT 512pt 4. Window Overlap
+#define FFT_512_4_WIN // FFT 512pt 4. Window Overlap
+//#define FFT_512_5_WIN // FFT 512pt 5. Window Overlap
 
 void audioDriver(){
 	int configStatus, status;
@@ -59,6 +60,34 @@ void audioDriver(){
 		}
 #endif // FFT_256_4_WIN
 
+#ifdef FFT_512_2_WIN
+		// Shift 256 samples over before reading 256 in the next iteration.
+		for (int index = 0; index < 256; index++) { // For 512pt 2. Window Overlap
+			TxBufferPtr[index] = TxBufferPtr[256+index];
+		}
+#endif // FFT_512_2_WIN
+
+#ifdef FFT_512_3_WIN
+		// Shift 384 samples over before reading 128 in the next iteration.
+		for (int index = 0; index < 384; index++) { // For 512pt 3. Window Overlap
+			TxBufferPtr[index] = TxBufferPtr[128+index];
+		}
+#endif // FFT_512_3_WIN
+
+#ifdef FFT_512_4_WIN
+		// Shift 448 samples over before reading 64 in the next iteration.
+		for (int index = 0; index < 448; index++) { // For 512pt 4. Window Overlap
+			TxBufferPtr[index] = TxBufferPtr[64+index];
+		}
+#endif // FFT_512_4_WIN
+
+#ifdef FFT_512_5_WIN
+		// Shift 480 samples over before reading 32 in the next iteration.
+		for (int index = 0; index < 480; index++) { // For 512pt 4. Window Overlap
+			TxBufferPtr[index] = TxBufferPtr[32+index];
+		}
+#endif // FFT_512_4_WIN
+
 		// read in audio data from ADC FIFO
 
 //		dataIn(32, TxBufferPtr, 96);		// For 128pt 3. Window Overlap.
@@ -79,9 +108,29 @@ void audioDriver(){
 		dataIn(32, TxBufferPtr, 224);		// For 256pt 4. Window Overlap.
 #endif // #ifdef FFT_256_4_WIN
 
+#ifdef FFT_512_2_WIN
+		// Get 256 samples per iteration.
+		dataIn(256, TxBufferPtr, 256);		// For 512pt 2. Window Overlap.
+#endif // FFT_512_2_WIN
+
+#ifdef FFT_512_3_WIN
+		// Get 128 samples per iteration.
+		dataIn(128, TxBufferPtr, 384);		// For 512pt 2. Window Overlap.
+#endif // FFT_512_3_WIN
+
+#ifdef FFT_512_4_WIN
+		// Get 64 samples per iteration.
+		dataIn(64, TxBufferPtr, 448);		// For 512pt 2. Window Overlap.
+#endif // FFT_512_4_WIN
+
+#ifdef FFT_512_5_WIN
+		// Get 32 samples per iteration.
+		dataIn(32, TxBufferPtr, 480);		// For 512pt 2. Window Overlap.
+#endif // FFT_512_5_WIN
+
 		// Apply Hanning Window Overlap.
 		// 0x0000RRRR0000LLLL
-#ifdef FFT_256_HAMMING
+#ifdef FFT_256_HANNING
 		for (int index = 0; index < 256; index++) {		// For 256pt FFT
 			u64 temp = TxBufferPtr[index];
 			s16 tempLeft = (s16)temp;
@@ -91,9 +140,9 @@ void audioDriver(){
 			temp = (((u64)tempRight) << 32) | ((u64) tempLeft & 0xFFFF);
 			TxBufferWindowedPtr[index] = temp;
 		}
-#endif // FFT_256_HAMMING
+#endif // FFT_256_HANNING
 
-#ifdef FFT_512_HAMMING
+#ifdef FFT_512_HANNING
 		for (int index = 0; index < 512; index++) {		// For 512pt FFT
 			u64 temp = TxBufferPtr[index];
 			s16 tempLeft = (s16)temp;
@@ -101,9 +150,9 @@ void audioDriver(){
 			tempRight = (float)tempRight * hanning512[index];
 			tempLeft = (float)tempLeft * hanning512[index];
 			temp = (((u64)tempRight) << 32) | ((u64) tempLeft & 0xFFFF);
-			TxBufferWindow OverlapedPtr[index] = temp;
+			TxBufferWindowedPtr[index] = temp;
 		}
-#endif // FFT_512_HAMMING
+#endif // FFT_512_HANNING
 
 		configStatus = XGpio_FftConfig();
 		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, TxBufferWindowedPtr, MxBufferPtr);
@@ -111,18 +160,38 @@ void audioDriver(){
 		if (status != XST_SUCCESS) {
 			xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
 		}
+#define SHIFT_UNITS 5
+//		for (int index = 0; index < 256-SHIFT_UNITS; index++) {
+//			MxBufferPtr[256-index] = MxBufferPtr[256-(index+SHIFT_UNITS)];
+//			MxBufferPtr[512-(256-index)] = MxBufferPtr[512-(256-(index+SHIFT_UNITS))];
+//		}
 
-
-//		for (int index = 0; index < 126; index++) {
-//			MxBufferPtr[127-index] = MxBufferPtr[127-(index+1)];
-//			MxBufferPtr[255-(127-index)] = MxBufferPtr[255-(127-index+1)];
+		adjustPitch();
+//		for (int index = 0; index < 256-SHIFT_UNITS; index++) { // DOWN
+//			MxBufferPtr[index] = MxBufferPtr[256-(index+SHIFT_UNITS)];
+//			MxBufferPtr[512-(256-index)] = MxBufferPtr[512-(256-(index+SHIFT_UNITS))];
 //		}
 //		MxBufferPtr[0] = 0;
 //		MxBufferPtr[255] = 0;
-//		for (int index = 0; index < 254; index++) {
-//			MxBufferPtr[255-index] = MxBufferPtr[255-(index+1)];
+//		for (int index = 0; index < 511-5; index++) {
+//			MxBufferPtr[511-index] = MxBufferPtr[511-(index+5)];
 //		}
 //		MxBufferPtr[0] = 0;
+//		MxBufferPtr[1] = 0;
+//		MxBufferPtr[2] = 0;
+//		MxBufferPtr[3] = 0;
+//		MxBufferPtr[4] = 0;
+//		MxBufferPtr[5] = 0;
+//		MxBufferPtr[6] = 0;
+//		MxBufferPtr[7] = 0;
+//		MxBufferPtr[511] = 0;
+//		MxBufferPtr[510] = 0;
+//		MxBufferPtr[509] = 0;
+//		MxBufferPtr[508] = 0;
+//		MxBufferPtr[507] = 0;
+//		MxBufferPtr[506] = 0;
+//		MxBufferPtr[505] = 0;
+//		MxBufferPtr[504] = 0;
 
 		// want to convert data back so we send it through IFFT
 
@@ -150,8 +219,29 @@ void audioDriver(){
 #endif // FFT_256_3_WIN
 
 #ifdef FFT_256_4_WIN
-		dataOut(32, RxShiftBufferPtr, 112);	// For 256pt 4. Window Overlap.
+		// Send middle 32 samples
+		dataOut(32, RxShiftBufferPtr, 112);	// For 512pt 4. Window Overlap.
 #endif // FFT_256_4_WIN
+
+#ifdef FFT_512_2_WIN
+		// Send middle 256 samples
+		dataOut(256, RxShiftBufferPtr, 128);	// For 512pt 2. Window Overlap.
+#endif // FFT_512_2_WIN
+
+#ifdef FFT_512_3_WIN
+		// Send middle 128 samples
+		dataOut(128, RxShiftBufferPtr, 192);	// For 512pt 3. Window Overlap.
+#endif // FFT_512_3_WIN
+
+#ifdef FFT_512_4_WIN
+		// Send middle 64 samples
+		dataOut(64, RxShiftBufferPtr, 224);	// For 512pt 3. Window Overlap.
+#endif // FFT_512_4_WIN
+
+#ifdef FFT_512_5_WIN
+		// Send middle 32 samples
+		dataOut(32, RxShiftBufferPtr, 240);	// For 256pt 3. Window Overlap.
+#endif // FFT_512_5_WIN
 //		dataOut(32, RxShiftBufferPtr, 112);
 	}
 }
@@ -205,4 +295,71 @@ void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset) {
 			dataOut++;
 		}
 	}
+}
+
+// adjust pitch based on counter value
+//pitchCounter
+void adjustPitch(){
+	int* pitchCounter = (int*)PITCH_CNTR_LOCATION;
+	if (*pitchCounter != 0){
+		// do stuff with the MxBufferPtr to adjust the pitch
+		//RRRRRRRRLLLLLLLL
+		//RRRRRRRR
+		//shift by amount of pitch counter
+int pitchVal = *pitchCounter;
+		if (pitchVal > 0){
+
+	#ifdef MIRROR_FFT
+			// for positive data shift to the RIGHT
+			// for negative data shift to the LEFT
+			for (int i=0; i<255 - pitchVal;i++){
+				MxBufferPtr[255-i] = MxBufferPtr[255-(i+pitchVal+1)];
+				MxBufferPtr[511-(255-i)] = MxBufferPtr[511-(255-i-pitchVal)];
+			}
+			for (int j=0; j<pitchVal;j++){
+				MxBufferPtr[j] = 0;
+				MxBufferPtr[511-j]=0;
+			}
+
+	#endif
+
+	#ifndef MIRROR_FFT
+
+			for (int i=0;i<64;i++){
+				MxBufferPtr[511-i] = MxBufferPtr[511-i - pitchVal];
+			}
+			for (int j=0; j<pitchVal;j++){
+				MxBufferPtr[j] = 0;
+			}
+
+	#endif
+		}
+
+		//SHIFT DOWN
+		else{
+		int pitchValPositive = -pitchVal;
+#ifdef MIRROR_FFT
+			for (int i=0; i<255 - pitchValPositive;i++){
+				MxBufferPtr[i] = MxBufferPtr[i+pitchValPositive];
+				MxBufferPtr[511-i] = MxBufferPtr[511-(i+pitchValPositive)];
+			}
+			for (int j=0;j<pitchValPositive;j++){
+
+				MxBufferPtr[255-j] = 0;
+				MxBufferPtr[256+j] = 0;
+			}
+#endif
+
+#ifndef MIRROR_FFT
+			for (int i=0;i<512;i++){
+				MxBufferPtr[i] = MxBufferPtr[i+pitchValPositive];
+			}
+			for (int j=0; j<pitchValPositive;j++){
+				MxBufferPtr[511-j] = 0;
+			}
+#endif
+
+		}
+
+}
 }
