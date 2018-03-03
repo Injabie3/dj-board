@@ -272,6 +272,9 @@ void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 		if ((buttonStatus & (1<<4)) != 0x0){
 			(*pitchCounter)++;
 		}
+		if ((buttonStatus & (1<<0)) != 0x0) {
+			*pitchCounter = 0;
+		}
 	}
 	else {
 		print("PL button released!\n\r");

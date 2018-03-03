@@ -13,7 +13,9 @@ volatile u64 *TxBufferPtr = (u64*)TX_BUFFER_BASE;
 volatile u64 *TxBufferWindowedPtr = (u64*)TX_BUFFER_WINDOWED_BASE;
 volatile u64 *MxBufferPtr = (u64*)MX_BUFFER_BASE;
 volatile u64 *RxBufferPtr = (u64*)RX_BUFFER_BASE;
+volatile u64 *Rx2BufferPtr = (u64*)RX_2_BUFFER_BASE;
 volatile u64 *RxShiftBufferPtr = (u64*)RX_SHIFT_BUFFER_BASE;
+volatile u64 *Rx2ShiftBufferPtr = (u64*)RX_2_SHIFT_BUFFER_BASE;
 volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 
 
@@ -21,14 +23,16 @@ volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 //#define FFT_256_HANNING		// Apply 256pt hanning.
 #define FFT_512_HANNING	// Apply 512pt hanning
 
+#define MIRROR_FFT
+
 //#define FFT_256_NO_WIN // FFT 256pt No Window Overlap
 //#define FFT_256_2_WIN // FFT 256pt 2. Window Overlap
 //#define FFT_256_3_WIN // FFT 256pt 3. Window Overlap
 //#define FFT_256_4_WIN // FFT 256pt 4. Window Overlap
 
-//#define FFT_512_2_WIN	// FFT 512pt 2. Window Overlap
+#define FFT_512_2_WIN	// FFT 512pt 2. Window Overlap
 //#define FFT_512_3_WIN // FFT 512pt 3. Window Overlap
-#define FFT_512_4_WIN // FFT 512pt 4. Window Overlap
+//#define FFT_512_4_WIN // FFT 512pt 4. Window Overlap
 //#define FFT_512_5_WIN // FFT 512pt 5. Window Overlap
 
 void audioDriver(){
@@ -160,50 +164,24 @@ void audioDriver(){
 		if (status != XST_SUCCESS) {
 			xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
 		}
-#define SHIFT_UNITS 5
-//		for (int index = 0; index < 256-SHIFT_UNITS; index++) {
-//			MxBufferPtr[256-index] = MxBufferPtr[256-(index+SHIFT_UNITS)];
-//			MxBufferPtr[512-(256-index)] = MxBufferPtr[512-(256-(index+SHIFT_UNITS))];
-//		}
 
 		adjustPitch();
-//		for (int index = 0; index < 256-SHIFT_UNITS; index++) { // DOWN
-//			MxBufferPtr[index] = MxBufferPtr[256-(index+SHIFT_UNITS)];
-//			MxBufferPtr[512-(256-index)] = MxBufferPtr[512-(256-(index+SHIFT_UNITS))];
-//		}
-//		MxBufferPtr[0] = 0;
-//		MxBufferPtr[255] = 0;
-//		for (int index = 0; index < 511-5; index++) {
-//			MxBufferPtr[511-index] = MxBufferPtr[511-(index+5)];
-//		}
-//		MxBufferPtr[0] = 0;
-//		MxBufferPtr[1] = 0;
-//		MxBufferPtr[2] = 0;
-//		MxBufferPtr[3] = 0;
-//		MxBufferPtr[4] = 0;
-//		MxBufferPtr[5] = 0;
-//		MxBufferPtr[6] = 0;
-//		MxBufferPtr[7] = 0;
-//		MxBufferPtr[511] = 0;
-//		MxBufferPtr[510] = 0;
-//		MxBufferPtr[509] = 0;
-//		MxBufferPtr[508] = 0;
-//		MxBufferPtr[507] = 0;
-//		MxBufferPtr[506] = 0;
-//		MxBufferPtr[505] = 0;
-//		MxBufferPtr[504] = 0;
 
 		// want to convert data back so we send it through IFFT
 
 		configStatus = XGpio_IFftConfig();
-		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, RxBufferPtr);
+		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, Rx2BufferPtr);
 
 		if (status != XST_SUCCESS) {
 				xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
 			}
 		//need to convert output because it is shifted by 3 bits
-		shiftBits(RxBufferPtr, RxShiftBufferPtr);
+		shiftBits(Rx2BufferPtr, Rx2ShiftBufferPtr);
 
+		// Sum bits
+		for (int index = 0; index < 256; index++) {
+			RxShiftBufferPtr[256+index] += Rx2ShiftBufferPtr[index];
+		}
 //		dataOut(32, RxShiftBufferPtr, 32);	// For 128pt 3. Window Overlap.
 
 #ifdef FFT_256_NO_WIN
@@ -225,7 +203,9 @@ void audioDriver(){
 
 #ifdef FFT_512_2_WIN
 		// Send middle 256 samples
-		dataOut(256, RxShiftBufferPtr, 128);	// For 512pt 2. Window Overlap.
+//		dataOut(256, RxShiftBufferPtr, 128);	// For 512pt 2. Window Overlap.
+		// Send last 256 samples
+		dataOut(256, RxShiftBufferPtr, 256);	// For 512pt 2. Window Overlap.
 #endif // FFT_512_2_WIN
 
 #ifdef FFT_512_3_WIN
@@ -243,6 +223,11 @@ void audioDriver(){
 		dataOut(32, RxShiftBufferPtr, 240);	// For 256pt 3. Window Overlap.
 #endif // FFT_512_5_WIN
 //		dataOut(32, RxShiftBufferPtr, 112);
+
+		// Move Rx2Buffer to RxBuffer
+		for (int index = 0; index < 512; index++) {
+			RxShiftBufferPtr[index] = Rx2ShiftBufferPtr[index];
+		}
 	}
 }
 
@@ -299,45 +284,49 @@ void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset) {
 
 // adjust pitch based on counter value
 //pitchCounter
-void adjustPitch(){
+void adjustPitch() {
 	int* pitchCounter = (int*)PITCH_CNTR_LOCATION;
 	if (*pitchCounter != 0){
 		// do stuff with the MxBufferPtr to adjust the pitch
 		//RRRRRRRRLLLLLLLL
 		//RRRRRRRR
 		//shift by amount of pitch counter
-int pitchVal = *pitchCounter;
+		int pitchVal = *pitchCounter;
 		if (pitchVal > 0){
 
-	#ifdef MIRROR_FFT
+#ifdef MIRROR_FFT
 			// for positive data shift to the RIGHT
 			// for negative data shift to the LEFT
 			for (int i=0; i<255 - pitchVal;i++){
-				MxBufferPtr[255-i] = MxBufferPtr[255-(i+pitchVal+1)];
-				MxBufferPtr[511-(255-i)] = MxBufferPtr[511-(255-i-pitchVal)];
+				MxBufferPtr[256-i] = MxBufferPtr[256-(i+pitchVal+1)];
 			}
-			for (int j=0; j<pitchVal;j++){
+			for (int i=0; i<254 - pitchVal; i++) {
+				MxBufferPtr[511-(254-i)] = MxBufferPtr[511-(254-i-pitchVal)];
+			}
+			for (int j=1; j<pitchVal;j++){
 				MxBufferPtr[j] = 0;
+			}
+			for (int j=0; j<pitchVal;j++) {
 				MxBufferPtr[511-j]=0;
 			}
 
-	#endif
+#endif
 
-	#ifndef MIRROR_FFT
+#ifndef MIRROR_FFT
 
-			for (int i=0;i<64;i++){
+			for (int i=0;i<512;i++){
 				MxBufferPtr[511-i] = MxBufferPtr[511-i - pitchVal];
 			}
 			for (int j=0; j<pitchVal;j++){
 				MxBufferPtr[j] = 0;
 			}
 
-	#endif
+#endif
 		}
 
 		//SHIFT DOWN
 		else{
-		int pitchValPositive = -pitchVal;
+			int pitchValPositive = -pitchVal;
 #ifdef MIRROR_FFT
 			for (int i=0; i<255 - pitchValPositive;i++){
 				MxBufferPtr[i] = MxBufferPtr[i+pitchValPositive];
@@ -361,5 +350,5 @@ int pitchVal = *pitchCounter;
 
 		}
 
-}
+	}
 }

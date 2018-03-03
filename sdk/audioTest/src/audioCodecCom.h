@@ -8,6 +8,8 @@
 
 void audioDriver();
 
+void adjustPitch();
+
 // Receives data from line in.
 // Parameters:
 // samplesToRead:	The number of samples to read.
