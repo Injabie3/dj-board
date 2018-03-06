@@ -58,6 +58,7 @@
 #include "xil_exception.h"
 #include "luiInterrupts.h" 			// Contains interrupt-related setup.
 #include "luiMemoryLocations.h"		// Custom memory location mappings.
+#include "luiCircularBuffer.h"		// Circular buffer.
 #include "audioCodecCom.h"
 
 
@@ -160,12 +161,12 @@ int main()
 	TxBufferPtr[6] = 0x0000000013c73cde;
 	TxBufferPtr[7] = 0x00000000c0caf5fd;*/
 
-	audioDriver(); // all the ADC/DAC read/write and FFT stuff taken out of here
+	//audioDriver(); // all the ADC/DAC read/write and FFT stuff taken out of here
 
 
 	xil_printf("Successfully ran XAxiDma_SimplePoll Example\r\n");
 
-	//audioLoop();
+	audioLoop();
 
 	cleanup_platform();
 	return 0;
@@ -248,52 +249,47 @@ int initializePeripherals() {
 }
 
 // This function is a loop to test the audio with GPIO switches.
-//void audioLoop() {
-//	int tone = 0;
-//	u32* audioChannels = (u32 *) LUI_MEM_AUDIO_CHANNELS;
-//	u32* psPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTONS;
-//	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
-//	while (1) {
-//		// WAIT FOR DAC FIFO TO BE EMPTY.
-//
-//		if ((AUDIOCHIP[0] & 1<<3)!=0) {
-//			// Transmit Line-In to HP Out.
-//			if (*audioChannels == 0b001 || switches == 0xC1) {
-//				AUDIOCHIP[1] = AUDIOCHIP[2];
-//			}
-//			else if (!1) {
-//				// Play middle C
-//				XGpio_SetDataDirection(&gpioMiddleC, 1, 0xFFFF); // Set as input
-//				tone =  XGpio_DiscreteRead(&gpioMiddleC, 1);
-//				AUDIOCHIP[1] = tone >> 5  | tone << 11; // Send middle C note to headphone out.  We shift 16 bits to cover the right channel as well.
-//				// AUDIOCHIP[1] = AUDIOCHIP[2] >> 16 | AUDIOCHIP[2] << 16;
-//			}
-//			else if (*plPushButtonEnabled == 1) {
-//				// Overlay middle C
-//				XGpio_SetDataDirection(&gpioMiddleC, 1, 0xFFFF); // Set as input
-//				tone =  XGpio_DiscreteRead(&gpioMiddleC, 1);
-//				AUDIOCHIP[1] = AUDIOCHIP[2] + (tone >> 6 | tone << 10);
-//			}
-//			else if (*audioChannels == 0b010) {
-//				// Output only right channel
-//				AUDIOCHIP[1] = AUDIOCHIP[2] & 0xFFFF0000;
-//			}
-//			else if (*audioChannels == 0b100) {
-//				// Output only left channel
-//				AUDIOCHIP[1] = AUDIOCHIP[2] & 0xFFFF;
-//			}
-//			else {
-//				AUDIOCHIP[1] = AUDIOCHIP[2];
-//
-//			}
-//
-//			XGpio_SetDataDirection(&gpioMiddleC, 1, 0x0); // Set as output
-//			// Set increment bit of middle C core.
-//			XGpio_DiscreteWrite(&gpioMiddleC, 1, 0x1);
-//			// Channel 2 controls the "clock", I toggle it here to "increment" it.
-//			// This is for demonstration purposes, since I highly doubt we want the PS to toggle "clocks" for us.
-//			XGpio_DiscreteWrite(&gpioMiddleC, 2, 0x0);
-//			XGpio_DiscreteWrite(&gpioMiddleC, 2, 0x1);
-//		}
-//	}
-//}
+void audioLoop() {
+	int tone = 0;
+	u32* audioChannels = (u32 *) LUI_MEM_AUDIO_CHANNELS;
+	u32* psPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTONS;
+	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
+	circular_buf_t circularBuffer;
+	circularBuffer.size = 48000*3;
+	circularBuffer.buffer = (uint32_t*) CIRCULAR_BUFFER_BASE;
+	circular_buf_reset(&circularBuffer);
+
+	volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
+	for (int index = 0; index < 24000; ) {
+
+		// Wait for ADC FIFO to not be empty.
+		if ((AUDIOCHIP[0] & 1 << 2) == 0) {
+			circular_buf_put(&circularBuffer, AUDIOCHIP[2]);
+			index++;
+		}
+	}
+
+	while (1) {
+		// WAIT FOR DAC FIFO TO BE EMPTY.
+		int* echoCounter = (int *) ECHO_CNTR_LOCATION;
+		int echoAmount = *echoCounter;
+		if ((AUDIOCHIP[0] & 1<<3)!=0) {
+			if (echoAmount == 0)
+				circular_buf_get(&circularBuffer, &AUDIOCHIP[1]);
+			else
+				circular_buf_getSummedTaps(&circularBuffer, &AUDIOCHIP[1], echoAmount*480);
+			circular_buf_put(&circularBuffer, AUDIOCHIP[2]);
+			//AUDIOCHIP[1] = AUDIOCHIP[2];
+
+		}
+
+		XGpio_SetDataDirection(&gpioMiddleC, 1, 0x0); // Set as output
+		// Set increment bit of middle C core.
+		XGpio_DiscreteWrite(&gpioMiddleC, 1, 0x1);
+		// Channel 2 controls the "clock", I toggle it here to "increment" it.
+		// This is for demonstration purposes, since I highly doubt we want the PS to toggle "clocks" for us.
+		XGpio_DiscreteWrite(&gpioMiddleC, 2, 0x0);
+		XGpio_DiscreteWrite(&gpioMiddleC, 2, 0x1);
+
+	}
+}

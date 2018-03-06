@@ -29,6 +29,7 @@ XGpioPs* gpioPsPushButtons;
 XGpio* gpioPushButtons;
 XGpio* gpioSwitches;
 int* pitchCounter;
+int* echoCounter;
 
 
 // ##############################
@@ -211,7 +212,9 @@ void registerInterruptHandler(XScuGic* interruptController) {
 
 void setUpInterruptCounters() {
 	pitchCounter = (int*) PITCH_CNTR_LOCATION;
+	echoCounter = (int*) ECHO_CNTR_LOCATION;
 	*pitchCounter = 0;
+	*echoCounter = 0;
 }
 
 // #######################################
@@ -272,8 +275,20 @@ void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 		if ((buttonStatus & (1<<4)) != 0x0){
 			(*pitchCounter)++;
 		}
+		// this tells us that the CTR button is pressed
 		if ((buttonStatus & (1<<0)) != 0x0) {
 			*pitchCounter = 0;
+		}
+		if ((buttonStatus & (1<<1)) != 0x0) {
+			(*echoCounter)--;
+		}
+		// this tells us that the UP button is pressed
+		if ((buttonStatus & (1<<4)) != 0x0){
+			(*echoCounter)++;
+		}
+		// this tells us that the CTR button is pressed
+		if ((buttonStatus & (1<<0)) != 0x0) {
+			*echoCounter = 0;
 		}
 	}
 	else {

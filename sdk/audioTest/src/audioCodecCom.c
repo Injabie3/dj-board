@@ -25,15 +25,16 @@ volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 
 #define MIRROR_FFT
 
-//#define FFT_256_NO_WIN // FFT 256pt No Window Overlap
-//#define FFT_256_2_WIN // FFT 256pt 2. Window Overlap
-//#define FFT_256_3_WIN // FFT 256pt 3. Window Overlap
-//#define FFT_256_4_WIN // FFT 256pt 4. Window Overlap
+//#define FFT_256_NO_WIN 		// FFT 256pt No Window Overlap
+//#define FFT_256_2_WIN 		// FFT 256pt 2. Window Overlap
+//#define FFT_256_3_WIN 		// FFT 256pt 3. Window Overlap
+//#define FFT_256_4_WIN 		// FFT 256pt 4. Window Overlap
 
-#define FFT_512_2_WIN	// FFT 512pt 2. Window Overlap
-//#define FFT_512_3_WIN // FFT 512pt 3. Window Overlap
-//#define FFT_512_4_WIN // FFT 512pt 4. Window Overlap
-//#define FFT_512_5_WIN // FFT 512pt 5. Window Overlap
+//#define FFT_512_2_WIN			// FFT 512pt 2. Window Overlap
+#define FFT_512_2_WIN_SUM		// FFT 512pt 2. Window Overlap, except using Dan's summing suggestion.
+//#define FFT_512_3_WIN 		// FFT 512pt 3. Window Overlap
+//#define FFT_512_4_WIN 		// FFT 512pt 4. Window Overlap
+//#define FFT_512_5_WIN 		// FFT 512pt 5. Window Overlap
 
 void audioDriver(){
 	int configStatus, status;
@@ -70,6 +71,13 @@ void audioDriver(){
 			TxBufferPtr[index] = TxBufferPtr[256+index];
 		}
 #endif // FFT_512_2_WIN
+
+#ifdef FFT_512_2_WIN_SUM
+		// Shift 256 samples over before reading 256 in the next iteration.
+		for (int index = 0; index < 256; index++) { // For 512pt 2. Window Overlap, except using Dan's summing suggestion.
+			TxBufferPtr[index] = TxBufferPtr[256+index];
+		}
+#endif // FFT_512_2_WIN_SUM
 
 #ifdef FFT_512_3_WIN
 		// Shift 384 samples over before reading 128 in the next iteration.
@@ -116,6 +124,11 @@ void audioDriver(){
 		// Get 256 samples per iteration.
 		dataIn(256, TxBufferPtr, 256);		// For 512pt 2. Window Overlap.
 #endif // FFT_512_2_WIN
+
+#ifdef FFT_512_2_WIN_SUM
+		// Get 256 samples per iteration.
+		dataIn(256, TxBufferPtr, 256);		// For 512pt 2. Window Overlap, except using Dan's summing suggestion.
+#endif // FFT_512_2_WIN_SUM
 
 #ifdef FFT_512_3_WIN
 		// Get 128 samples per iteration.
@@ -170,6 +183,7 @@ void audioDriver(){
 		// want to convert data back so we send it through IFFT
 
 		configStatus = XGpio_IFftConfig();
+#ifdef FFT_512_2_WIN_SUM
 		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, Rx2BufferPtr);
 
 		if (status != XST_SUCCESS) {
@@ -182,6 +196,15 @@ void audioDriver(){
 		for (int index = 0; index < 256; index++) {
 			RxShiftBufferPtr[256+index] += Rx2ShiftBufferPtr[index];
 		}
+#else
+		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, RxBufferPtr);
+
+		if (status != XST_SUCCESS) {
+				xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
+			}
+		//need to convert output because it is shifted by 3 bits
+		shiftBits(RxBufferPtr, RxShiftBufferPtr);
+#endif // FFT_512_2_WIN_SUM
 //		dataOut(32, RxShiftBufferPtr, 32);	// For 128pt 3. Window Overlap.
 
 #ifdef FFT_256_NO_WIN
@@ -203,10 +226,18 @@ void audioDriver(){
 
 #ifdef FFT_512_2_WIN
 		// Send middle 256 samples
-//		dataOut(256, RxShiftBufferPtr, 128);	// For 512pt 2. Window Overlap.
-		// Send last 256 samples
-		dataOut(256, RxShiftBufferPtr, 256);	// For 512pt 2. Window Overlap.
+		dataOut(256, RxShiftBufferPtr, 128);	// For 512pt 2. Window Overlap.
 #endif // FFT_512_2_WIN
+
+#ifdef FFT_512_2_WIN_SUM
+		// Send last 256 samples
+		dataOut(256, RxShiftBufferPtr, 256);	// For 512pt 2. Window Overlap, except with Dan's summing suggestion
+
+		// Move Rx2Buffer to RxBuffer
+		for (int index = 0; index < 512; index++) {
+			RxShiftBufferPtr[index] = Rx2ShiftBufferPtr[index];
+		}
+#endif // FFT_512_2_WIN_SUM
 
 #ifdef FFT_512_3_WIN
 		// Send middle 128 samples
@@ -223,11 +254,6 @@ void audioDriver(){
 		dataOut(32, RxShiftBufferPtr, 240);	// For 256pt 3. Window Overlap.
 #endif // FFT_512_5_WIN
 //		dataOut(32, RxShiftBufferPtr, 112);
-
-		// Move Rx2Buffer to RxBuffer
-		for (int index = 0; index < 512; index++) {
-			RxShiftBufferPtr[index] = Rx2ShiftBufferPtr[index];
-		}
 	}
 }
 
@@ -303,8 +329,8 @@ void adjustPitch() {
 			for (int i=0; i<254 - pitchVal; i++) {
 				MxBufferPtr[511-(254-i)] = MxBufferPtr[511-(254-i-pitchVal)];
 			}
-			for (int j=1; j<pitchVal;j++){
-				MxBufferPtr[j] = 0;
+			for (int j=0; j<pitchVal;j++){
+				MxBufferPtr[j+1] = 0;
 			}
 			for (int j=0; j<pitchVal;j++) {
 				MxBufferPtr[511-j]=0;

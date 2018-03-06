@@ -10,6 +10,7 @@ C_SRCS += \
 ../src/audioCodecCom.c \
 ../src/fftCom.c \
 ../src/helloworld.c \
+../src/luiCircularBuffer.c \
 ../src/luiInterrupts.c \
 ../src/platform.c 
 
@@ -17,6 +18,7 @@ OBJS += \
 ./src/audioCodecCom.o \
 ./src/fftCom.o \
 ./src/helloworld.o \
+./src/luiCircularBuffer.o \
 ./src/luiInterrupts.o \
 ./src/platform.o 
 
@@ -24,6 +26,7 @@ C_DEPS += \
 ./src/audioCodecCom.d \
 ./src/fftCom.d \
 ./src/helloworld.d \
+./src/luiCircularBuffer.d \
 ./src/luiInterrupts.d \
 ./src/platform.d 
 
