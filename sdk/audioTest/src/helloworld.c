@@ -251,7 +251,6 @@ int initializePeripherals() {
 // This function is a loop to test the audio with GPIO switches.
 void audioLoop() {
 	int tone = 0;
-	u32* audioChannels = (u32 *) LUI_MEM_AUDIO_CHANNELS;
 	u32* psPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTONS;
 	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
 	circular_buf_t circularBuffer;
@@ -260,7 +259,7 @@ void audioLoop() {
 	circular_buf_reset(&circularBuffer);
 
 	volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
-	for (int index = 0; index < 24000; ) {
+	for (int index = 0; index < 48000; ) {
 
 		// Wait for ADC FIFO to not be empty.
 		if ((AUDIOCHIP[0] & 1 << 2) == 0) {
@@ -277,7 +276,7 @@ void audioLoop() {
 			if (echoAmount == 0)
 				circular_buf_get(&circularBuffer, &AUDIOCHIP[1]);
 			else
-				circular_buf_getSummedTaps(&circularBuffer, &AUDIOCHIP[1], echoAmount*480);
+				circular_buf_getSummedTaps(&circularBuffer, &AUDIOCHIP[1], echoAmount*120);
 			circular_buf_put(&circularBuffer, AUDIOCHIP[2]);
 			//AUDIOCHIP[1] = AUDIOCHIP[2];
 

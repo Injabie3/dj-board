@@ -14,9 +14,10 @@
 
 typedef struct {
 	uint32_t * buffer;
-	size_t head;
-	size_t tail;
+	size_t head;	// Index of the array where we will insert the next entry.
+	size_t tail;	// Index of the array where we will "pop"
 	size_t size; //of the buffer
+	size_t startingIndex;	// The offset in which we will start fetching.  Used for echo.
 } circular_buf_t;
 
 /**
@@ -27,10 +28,8 @@ typedef struct {
 
 int circular_buf_reset(circular_buf_t * cbuf);
 int circular_buf_put(circular_buf_t * cbuf, uint32_t data);
-//TODO: int circular_buf_put_range(circular_buf_t cbuf, uint8_t * data, size_t len);
 int circular_buf_get(circular_buf_t * cbuf, uint32_t * data);
 int circular_buf_getSummedTaps(circular_buf_t * cbuf, uint32_t * data, int distanceApart);
-//TODO: int circular_buf_get_range(circular_buf_t cbuf, uint8_t *data, size_t len);
 bool circular_buf_empty(circular_buf_t cbuf);
 bool circular_buf_full(circular_buf_t cbuf);
 
@@ -49,6 +48,7 @@ int circular_buf_reset(circular_buf_t * cbuf)
     {
         cbuf->head = 0;
         cbuf->tail = 0;
+        cbuf->startingIndex = 12000;
         r = 0;
     }
 
@@ -87,8 +87,8 @@ int circular_buf_put(circular_buf_t * cbuf, uint32_t data)
 }
 
 
-// Grabs a value from "tail" of the circular buffer, and advances
-// the tail pointer.
+// Grabs a value from the tail + startingIndex of the circular buffer,
+// and advances the tail pointer.
 //
 // Arguments:
 // cbuf:	The circular buffer struct.
@@ -103,7 +103,8 @@ int circular_buf_get(circular_buf_t * cbuf, uint32_t * data)
 
     if(cbuf && data && !circular_buf_empty(*cbuf))
     {
-        *data = cbuf->buffer[cbuf->tail];
+    	int index = (cbuf->tail + cbuf->startingIndex) % cbuf->size;
+        *data = cbuf->buffer[index];
         cbuf->tail = (cbuf->tail + 1) % cbuf->size;
 
         r = 0;
@@ -112,24 +113,72 @@ int circular_buf_get(circular_buf_t * cbuf, uint32_t * data)
     return r;
 }
 
+// Grabs values from multiple taps, and sums them together.
+// In this case, we are using 3 taps, with the first tap weighted
+// 100%, the second weighted 50%, and the third one weighted 25%.
+// This requires your buffer size to be >= 12000.
+// The first tap will be at index startingIndex, and every other tap will
+// be at -distanceApart from the previous tap.
+//
+// Arguments:
+// cbuf:			The circular buffer struct.
+// data:			A pointer where the result will be stored.
+// distanceApart:	The spacing between taps.
+//
+// Returns:
+// 0 - Data successfully retrieved.
+// 1 - Invalid cbuf, buffer is empty, or size not large enough.
 int circular_buf_getSummedTaps(circular_buf_t * cbuf, uint32_t * data, int distanceApart)
 {
-    int r = -1;
+	// TODO Do a check for distanceApart wrt startingIndex
+    int r = 1;
 
-    if(cbuf && data && !circular_buf_empty(*cbuf))
+    if(cbuf && data && !circular_buf_empty(*cbuf) && (cbuf->size >= cbuf->startingIndex))
     {
-    	int tap1Index = cbuf->tail;
-    	int tap2Index = (cbuf->tail + distanceApart) % cbuf->size;
-    	int tap3Index = (cbuf->tail + 2*distanceApart) % cbuf->size;
-    	uint16_t leftChannel = cbuf->buffer[tap1Index];
-    	uint16_t rightChannel = cbuf->buffer[tap1Index] >> 16;
 
-    	leftChannel += (uint16_t)(cbuf->buffer[tap2Index]);// >> 2;
-    	leftChannel += (uint16_t)(cbuf->buffer[tap3Index]);// >> 4;
-    	rightChannel += (uint16_t)(cbuf->buffer[tap2Index] >> 16);// >> 2;
-		rightChannel += (uint16_t)(cbuf->buffer[tap3Index] >> 16);// >> 4;
+    	int tap1Index = (cbuf->tail + cbuf->startingIndex) % cbuf->size;
+    	int tap2Index = (cbuf->tail + cbuf->startingIndex - distanceApart) % cbuf->size;
+    	int tap3Index = (cbuf->tail + cbuf->startingIndex - 2*distanceApart) % cbuf->size;
+    	int tap4Index = (cbuf->tail + cbuf->startingIndex - 3*distanceApart) % cbuf->size;
+    	int tap5Index = (cbuf->tail + cbuf->startingIndex - 4*distanceApart) % cbuf->size;
+    	int16_t leftChannel = cbuf->buffer[tap1Index];
+    	int16_t rightChannel = cbuf->buffer[tap1Index] >> 16;
+    	int16_t leftChannelTap2 = cbuf->buffer[tap2Index];
+    	int16_t rightChannelTap2 = cbuf->buffer[tap2Index] >> 16;
+
+    	const int16_t TAP2REDUCTION = 1000;
+// TODO Make the following a helper function.
+//    	if (rightChannelTap2 < 0 && rightChannelTap2 <= -TAP2REDUCTION) {
+//    		rightChannelTap2 += TAP2REDUCTION;
+//    	}
+//    	else if (rightChannelTap2 > 0 && rightChannelTap2 >= TAP2REDUCTION) {
+//    		rightChannelTap2 -= TAP2REDUCTION;
+//    	}
+//    	else {
+//    		rightChannelTap2 = 0;
+//    	}
+//
+//    	if (leftChannelTap2 < 0 && leftChannelTap2 <= -TAP2REDUCTION) {
+//    		leftChannelTap2 += TAP2REDUCTION;
+//    	}
+//    	else if (leftChannelTap2 > 0 && leftChannelTap2 >= TAP2REDUCTION) {
+//    		leftChannelTap2 -= TAP2REDUCTION;
+//    	}
+//    	else {
+//    		leftChannelTap2 = 0;
+//    	}
+    	leftChannel += (int16_t)(cbuf->buffer[tap2Index]) >> 1;
+    	leftChannel += (int16_t)(cbuf->buffer[tap3Index]) >> 2;
+    	leftChannel += (int16_t)(cbuf->buffer[tap4Index]) >> 3;
+    	leftChannel += (int16_t)(cbuf->buffer[tap5Index]) >> 4;
+    	rightChannel += (int16_t)(cbuf->buffer[tap2Index] >> 16) >> 1;
+		rightChannel += (int16_t)(cbuf->buffer[tap3Index] >> 16) >> 2;
+		rightChannel += (int16_t)(cbuf->buffer[tap4Index] >> 16) >> 3;
+		rightChannel += (int16_t)(cbuf->buffer[tap5Index] >> 16) >> 4;
+//    	leftChannel += leftChannelTap2;
+//    	rightChannel += rightChannelTap2;
         //*data = cbuf->buffer[cbuf->tail];
-		*data = (uint32_t)(rightChannel << 16) | leftChannel;
+		*data = ((uint16_t)(rightChannel) << 16) | (uint16_t)leftChannel;
         cbuf->tail = (cbuf->tail + 1) % cbuf->size;
 
         r = 0;
@@ -163,6 +212,10 @@ bool circular_buf_full(circular_buf_t cbuf)
     return ((cbuf.head + 1) % cbuf.size) == cbuf.tail;
 }
 
+
+// ###############
+// # SAMPLE CODE #
+// ###############
 //int main(void)
 //{
 //	circular_buf_t cbuf;

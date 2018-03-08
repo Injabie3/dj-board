@@ -19,6 +19,9 @@
 #include "Xil_exception.h"
 #include "luiMemoryLocations.h"
 
+// Uncomment the following line for UART debug code.
+//#define LUI_DEBUG
+
 // ####################
 // # GLOBAL VARIABLES #
 // ####################
@@ -30,57 +33,12 @@ XGpio* gpioPushButtons;
 XGpio* gpioSwitches;
 int* pitchCounter;
 int* echoCounter;
+int* switchUpEcho = (int*) SWITCH_UP_ECHO;
 
 
 // ##############################
 // # INTERRUPT SET UP FUNCTIONS #
 // ##############################
-
-// The function below does not work!
-// This sets up the interrupt controller that is on the PS for the GPIO supplied.
-// Parameters:
-// - interruptController: 	A pointer to the interrupt controller.
-// - gpio:					A pointer to the GPIO instance to associate with the interrupt controller.
-// - interruptID			The interrupt ID.
-// - interruptHandler		The function you want to execute when an interrupt from the GPIO occurs.
-// Returns:
-// - XST_SUCCESS, if the interrupt system was set up successfully!
-// - XST_FAILURE, if the interrupt system could not be set up.
-//int setupInterruptSystemXIntc(XIntc* interruptController, XGpio* gpio, u32 interruptID, Xil_ExceptionHandler interruptHandler) {
-//	int status;
-//	// Hook up the GPIO Switch interrupt to the interrupt controller.
-//	status = XIntc_Connect(interruptController, interruptID, (Xil_ExceptionHandler)interruptHandler, gpio);
-//	//status = XScuGic_Connect(&interruptController, 1, (Xil_ExceptionHandler)gpioSwitchesInterruptHandler, &gpioSwitches);
-//	if (status != XST_SUCCESS) {
-//		xil_printf("Error: Could not connect GPIO interrupt to interrupt controller!\r\n");
-//		return XST_FAILURE;
-//	}
-//
-//	// Enable the GPIO Switch interrupt
-//	XIntc_Enable(interruptController, interruptID);
-//	//XScuGic_Enable(&interruptController, 1);
-//
-//	// Start the AXI Interrupt Controller slave.
-//	status = XIntc_Start(interruptController, XIN_REAL_MODE);
-//	if (status != XST_SUCCESS) {
-//		return status;
-//	}
-//
-//
-//	Xil_ExceptionInit();
-//
-//	Xil_ExceptionRegisterHandler(XIL_EXCEPTION_ID_INT, (Xil_ExceptionHandler)XIntc_InterruptHandler, interruptController);
-//
-//	/* Enable non-critical exceptions */
-//	Xil_ExceptionEnable();
-//
-//
-//
-//	XGpio_InterruptEnable(gpio, 0xFFFF);
-//	XGpio_InterruptGlobalEnable(gpio);
-//
-//	return status;
-//}
 
 // This sets up the interrupt controller that is on the PS for the GPIO supplied.
 // Parameters:
@@ -224,14 +182,18 @@ void setUpInterruptCounters() {
 // This function is what will get called when an interrupt occurs from the switches
 void gpioSwitchesInterruptHandler(void *CallbackRef) {
 	XGpio *gpioPointer = (XGpio *) CallbackRef;
-
 	int switches = XGpio_DiscreteRead(gpioPointer, 1);
 	int switchVar = switches;
-	u32* audioChannels = (u32 *) LUI_MEM_AUDIO_CHANNELS;
 
-	*audioChannels = (switches >> 5) & 0b111;
 
 	int switchNum = 0;
+	if ((switches & (1 << 4)) != 0) {
+		*switchUpEcho = 1;
+	}
+	else {
+		*switchUpEcho = 0;
+	}
+
 	while(switchVar != 0) {
 
 		if ((0x1 & switchVar) == 1) {
@@ -265,38 +227,57 @@ void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 	// need to check which button is pressed (up or down)
 	// and increment counter based on that
 	if ((buttonStatus & 0b11111) != 0x0) {
+
+#ifdef LUI_DEBUG
 		print("PL button pressed!\n\r");
+#endif // LUI_DEBUG
+
 		*plPushButtonEnabled = 1;
+
 		// this tells us that the down button is pressed
 		if ((buttonStatus & (1<<1)) != 0x0) {
 			(*pitchCounter)--;
 		}
 		// this tells us that the UP button is pressed
 		if ((buttonStatus & (1<<4)) != 0x0){
+			// TODO Put an upper limit on this.
 			(*pitchCounter)++;
 		}
 		// this tells us that the CTR button is pressed
 		if ((buttonStatus & (1<<0)) != 0x0) {
 			*pitchCounter = 0;
 		}
-		if ((buttonStatus & (1<<1)) != 0x0) {
-			(*echoCounter)--;
-		}
-		// this tells us that the UP button is pressed
-		if ((buttonStatus & (1<<4)) != 0x0){
-			(*echoCounter)++;
-		}
-		// this tells us that the CTR button is pressed
-		if ((buttonStatus & (1<<0)) != 0x0) {
-			*echoCounter = 0;
+
+		// Only adjust echo if SW4 is up.
+		if ((*switchUpEcho) == 1) {
+			// Do not let *echoCounter go less than 0
+			if ((buttonStatus & (1<<1)) != 0x0 && (*echoCounter) > 0) {
+				(*echoCounter)--;
+			}
+			// this tells us that the UP button is pressed
+			if ((buttonStatus & (1<<4)) != 0x0){
+				(*echoCounter)++;
+			}
+			// this tells us that the CTR button is pressed
+			if ((buttonStatus & (1<<0)) != 0x0) {
+				*echoCounter = 0;
+			}
+			// TODO Check to see if the below is dangerous.
+			char buffer[50];
+			sprintf(buffer, "Echo adjusted. Currently at %02d.\n\r", *echoCounter);
+			print(&buffer);
 		}
 	}
 	else {
+#ifdef LUI_DEBUG
 		print("PL button released!\n\r");
-		*plPushButtonEnabled = 0;
+#endif // LUI_DEBUG
+		//*plPushButtonEnabled = 0;
 	}
 
+#ifdef LUI_DEBUG
 	print("Success! PL Push Button interrupts work!\r\n");
+#endif // LUI_DEBUG
 	// Clear the interrupt!
 	XGpio_InterruptClear(gpioPointer, 1);
 	return;
@@ -311,11 +292,15 @@ void gpioPushButtonsPSInterruptHandler(void *CallbackRef) {
 
 	if (ignoreButtonPress == 0) {
 		if(leftButton == 1 || rightButton == 1) {
+#ifdef LUI_DEBUG
 			print("PS Button pressed!\n\r");
+#endif // LUI_DEBUG
 			*psPushButtonEnabled = 1;
 		}
 		else {
+#ifdef LUI_DEBUG
 			print("PS Button released!\n\r");
+#endif // LUI_DEBUG
 			*psPushButtonEnabled = 0;
 		}
 		if (timerPointer) {
@@ -325,8 +310,9 @@ void gpioPushButtonsPSInterruptHandler(void *CallbackRef) {
 		}
 	}
 
+#ifdef LUI_DEBUG
 	print("Success! PS Push Button interrupts work!\r\n");
-
+#endif // LUI_DEBUG
 	// Clear the interrupt!
 	// MIO 50 - Left button | MIO 51 - Right button
 	XGpioPs_IntrClearPin(gpio, 50);

@@ -22,17 +22,6 @@
 // # INTERRUPT SET UP FUNCTIONS #
 // ##############################
 
-// This sets up the interrupt controller that is on the PS for the GPIO supplied (for GPIO on the PL [AXI]).
-// Parameters:
-// - interruptController: 	A pointer to the interrupt controller.
-// - gpio:					A pointer to the GPIO instance to associate with the interrupt controller.
-// - interruptID			The interrupt ID.
-// - interruptHandler		The function you want to execute when an interrupt from the GPIO occurs.
-// Returns:
-// - XST_SUCCESS, if the interrupt system was set up successfully!
-// - XST_FAILURE, if the interrupt system could not be set up.
-//int setupInterruptSystemXIntc(XIntc* interruptController, XGpio* gpio, u32 interruptID, Xil_ExceptionHandler interruptHandler);
-
 // This sets up the interrupt controller that is on the PS for the GPIO supplied.
 // Parameters:
 // - interruptController: 	A pointer to the interrupt controller.

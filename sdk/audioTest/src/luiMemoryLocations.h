@@ -28,11 +28,8 @@
 #define LUI_MEM_PL_PUSHBUTTONS	LUI_DDR_BASE_ADDR + 0x08
 #define PITCH_CNTR_LOCATION		LUI_DDR_BASE_ADDR + 0x0C
 #define ECHO_CNTR_LOCATION		LUI_DDR_BASE_ADDR + 0x10
-
-// Bit 2: Left
-// Bit 1: Right
-// Bit 0: Both
-#define LUI_MEM_AUDIO_CHANNELS	LUI_DDR_BASE_ADDR + 0x14
+#define SWITCH_UP_ECHO			LUI_DDR_BASE_ADDR + 0x14
+#define SWITCH_UP_PITCH			LUI_DDR_BASE_ADDR + 0x18
 
 //defines for memory locations to store audio data
 #define DDR_BASE                  		XPAR_PS7_DDR_0_S_AXI_BASEADDR

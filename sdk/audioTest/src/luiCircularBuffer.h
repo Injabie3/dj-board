@@ -15,9 +15,10 @@
 #define SRC_LUICIRCULARBUFFER_H_
 typedef struct {
 	uint32_t * buffer;
-	size_t head;
-	size_t tail;
+	size_t head;	// Index of the array where we will insert the next entry.
+	size_t tail;	// Index of the array where we will "pop"
 	size_t size; //of the buffer
+	size_t startingIndex;	// The offset in which we will start fetching.  Used for echo.
 } circular_buf_t;
 
 /**
@@ -50,21 +51,24 @@ int circular_buf_put(circular_buf_t * cbuf, uint32_t data);
 
 //TODO: int circular_buf_put_range(circular_buf_t cbuf, uint8_t * data, size_t len);
 
-// Grabs a value from "tail" of the circular buffer, and advances
-// the tail pointer.
+// Grabs a value from the tail + startingIndex of the circular buffer,
+// and advances the tail pointer.
 //
 // Arguments:
 // cbuf:	The circular buffer struct.
 // data:	A pointer to store the data in.
 //
-// Returns:
+// Return:
 // 0 - Data successfully retreived.
 // 1 - Invalid cbuf, or the buffer is empty.
 int circular_buf_get(circular_buf_t * cbuf, uint32_t * data);
 
 // Grabs values from multiple taps, and sums them together.
 // In this case, we are using 3 taps, with the first tap weighted
-// 100%, the second weighted 40%, and the last one weighted 10%
+// 100%, the second weighted 50%, and the third one weighted 25%.
+// This requires your buffer size to be >= 12000.
+// The first tap will be at index startingIndex, and every other tap will
+// be at -distanceApart from the previous tap.
 //
 // Arguments:
 // cbuf:			The circular buffer struct.
@@ -73,7 +77,7 @@ int circular_buf_get(circular_buf_t * cbuf, uint32_t * data);
 //
 // Returns:
 // 0 - Data successfully retrieved.
-// 1 - Invalid cbuf, or buffer is empty.
+// 1 - Invalid cbuf, buffer is empty, or size not large enough.
 int circular_buf_getSummedTaps(circular_buf_t * cbuf, uint32_t * data, int distanceApart);
 
 //TODO: int circular_buf_get_range(circular_buf_t cbuf, uint8_t *data, size_t len);
