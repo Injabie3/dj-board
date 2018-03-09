@@ -8,8 +8,6 @@
 
 void audioDriver();
 
-void adjustPitch();
-
 // Receives data from line in.
 // Parameters:
 // samplesToRead:	The number of samples to read.
@@ -23,5 +21,9 @@ void dataIn(int samplesToRead, volatile u64* toBuffer, int offset);
 // fromBuffer:		A pointer to the buffer containing the samples to send.
 // offset:			Start sending samples from the specified offset of the buffer above.
 void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset);
+
+void adjustPitch();
+
+void equalize();
 
 #endif // AUDIOCODECCOM_H

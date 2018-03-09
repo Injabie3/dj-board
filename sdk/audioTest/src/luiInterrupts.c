@@ -29,6 +29,7 @@ XGpioPs* gpioPsPushButtons;
 XGpio* gpioPushButtons;
 XGpio* gpioSwitches;
 int* pitchCounter;
+int* equalizeCounter;
 
 
 // ##############################
@@ -210,8 +211,12 @@ void registerInterruptHandler(XScuGic* interruptController) {
 }
 
 void setUpInterruptCounters() {
+	// initialize pitch adjustment counter
 	pitchCounter = (int*) PITCH_CNTR_LOCATION;
 	*pitchCounter = 0;
+	// initalize equalize adjustment counter
+	equalizeCounter = (int*) EQUAL_CNTR_LOCATION;
+	*equalizeCounter = 0;
 }
 
 // #######################################
@@ -225,15 +230,30 @@ void gpioSwitchesInterruptHandler(void *CallbackRef) {
 	int switches = XGpio_DiscreteRead(gpioPointer, 1);
 	int switchVar = switches;
 	u32* audioChannels = (u32 *) LUI_MEM_AUDIO_CHANNELS;
+	u16* equalizeLoc = (u16*) EQUAL_SEC_LOCATION;
 
+	// ask ryan about this
 	*audioChannels = (switches >> 5) & 0b111;
+	*equalizeLoc = 0; // initialize to 0
 
 	int switchNum = 0;
 	while(switchVar != 0) {
 
 		if ((0x1 & switchVar) == 1) {
 			xil_printf("Switch %d is up!\n\r", switchNum);
+			if (switchNum == 0){
+				*equalizeLoc = 1; // this means we want to amplify LOW frequency sounds
+			}
+			else if (switchNum == 1){
+				*equalizeLoc = 2; // this means we want to amplify MID frequency sounds
+
+			}
+			else if (switchNum == 2) {
+				*equalizeLoc = 3; //this means we want to amplify HIGH frequency sounds
+			}
 		}
+		// want to check if equalizing switches are up
+
 		switchNum++;
 		switchVar >>= 1;
 	}
@@ -248,6 +268,7 @@ void gpioSwitchesInterruptHandler(void *CallbackRef) {
 void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 	XGpio *gpioPointer = (XGpio *) CallbackRef;
 	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
+	u16* equalizeVal = (u16*) EQUAL_SEC_LOCATION;
 
 	// Get the buttons that are pushed down.
 	u32 buttonStatus = XGpio_DiscreteRead(gpioPointer, 1);
@@ -266,14 +287,19 @@ void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 		*plPushButtonEnabled = 1;
 		// this tells us that the down button is pressed
 		if ((buttonStatus & (1<<1)) != 0x0) {
+			if (*equalizeVal != 0){
+				(*equalizeCounter)--;
+			}
+			else
 			(*pitchCounter)--;
 		}
 		// this tells us that the UP button is pressed
 		if ((buttonStatus & (1<<4)) != 0x0){
+			if (*equalizeVal != 0){
+				(*equalizeCounter)++;
+			}
+			else
 			(*pitchCounter)++;
-		}
-		if ((buttonStatus & (1<<0)) != 0x0) {
-			*pitchCounter = 0;
 		}
 	}
 	else {

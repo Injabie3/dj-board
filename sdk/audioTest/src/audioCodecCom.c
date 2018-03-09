@@ -1,5 +1,6 @@
 
 #include <stdio.h>
+#include <math.h>
 #include "xparameters.h"
 #include "xstatus.h"
 #include "audioCodecCom.h"
@@ -13,9 +14,7 @@ volatile u64 *TxBufferPtr = (u64*)TX_BUFFER_BASE;
 volatile u64 *TxBufferWindowedPtr = (u64*)TX_BUFFER_WINDOWED_BASE;
 volatile u64 *MxBufferPtr = (u64*)MX_BUFFER_BASE;
 volatile u64 *RxBufferPtr = (u64*)RX_BUFFER_BASE;
-volatile u64 *Rx2BufferPtr = (u64*)RX_2_BUFFER_BASE;
 volatile u64 *RxShiftBufferPtr = (u64*)RX_SHIFT_BUFFER_BASE;
-volatile u64 *Rx2ShiftBufferPtr = (u64*)RX_2_SHIFT_BUFFER_BASE;
 volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 
 
@@ -23,16 +22,16 @@ volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 //#define FFT_256_HANNING		// Apply 256pt hanning.
 #define FFT_512_HANNING	// Apply 512pt hanning
 
-#define MIRROR_FFT
 
+#define MIRROR_FFT
 //#define FFT_256_NO_WIN // FFT 256pt No Window Overlap
 //#define FFT_256_2_WIN // FFT 256pt 2. Window Overlap
 //#define FFT_256_3_WIN // FFT 256pt 3. Window Overlap
 //#define FFT_256_4_WIN // FFT 256pt 4. Window Overlap
 
-#define FFT_512_2_WIN	// FFT 512pt 2. Window Overlap
+//#define FFT_512_2_WIN	// FFT 512pt 2. Window Overlap
 //#define FFT_512_3_WIN // FFT 512pt 3. Window Overlap
-//#define FFT_512_4_WIN // FFT 512pt 4. Window Overlap
+#define FFT_512_4_WIN // FFT 512pt 4. Window Overlap
 //#define FFT_512_5_WIN // FFT 512pt 5. Window Overlap
 
 void audioDriver(){
@@ -164,24 +163,37 @@ void audioDriver(){
 		if (status != XST_SUCCESS) {
 			xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
 		}
+#define SHIFT_UNITS 5
+//		for (int index = 0; index < 256-SHIFT_UNITS; index++) {
+//			MxBufferPtr[256-index] = MxBufferPtr[256-(index+SHIFT_UNITS)];
+//			MxBufferPtr[512-(256-index)] = MxBufferPtr[512-(256-(index+SHIFT_UNITS))];
+//		}
 
+
+//		for (int index = 0; index < 256-SHIFT_UNITS; index++) { // DOWN
+//			MxBufferPtr[index] = MxBufferPtr[256-(index+SHIFT_UNITS)];
+//			MxBufferPtr[512-(256-index)] = MxBufferPtr[512-(256-(index+SHIFT_UNITS))];
+//		}
+//		MxBufferPtr[0] = 0;
+//		MxBufferPtr[255] = 0;
+//		for (int index = 0; index < 511-5; index++) {
+//			MxBufferPtr[511-index] = MxBufferPtr[511-(index+5)];
+//		}
 		adjustPitch();
+
+		equalize();
 
 		// want to convert data back so we send it through IFFT
 
 		configStatus = XGpio_IFftConfig();
-		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, Rx2BufferPtr);
+		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, RxBufferPtr);
 
 		if (status != XST_SUCCESS) {
 				xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
 			}
 		//need to convert output because it is shifted by 3 bits
-		shiftBits(Rx2BufferPtr, Rx2ShiftBufferPtr);
+		shiftBits(RxBufferPtr, RxShiftBufferPtr);
 
-		// Sum bits
-		for (int index = 0; index < 256; index++) {
-			RxShiftBufferPtr[256+index] += Rx2ShiftBufferPtr[index];
-		}
 //		dataOut(32, RxShiftBufferPtr, 32);	// For 128pt 3. Window Overlap.
 
 #ifdef FFT_256_NO_WIN
@@ -203,9 +215,7 @@ void audioDriver(){
 
 #ifdef FFT_512_2_WIN
 		// Send middle 256 samples
-//		dataOut(256, RxShiftBufferPtr, 128);	// For 512pt 2. Window Overlap.
-		// Send last 256 samples
-		dataOut(256, RxShiftBufferPtr, 256);	// For 512pt 2. Window Overlap.
+		dataOut(256, RxShiftBufferPtr, 128);	// For 512pt 2. Window Overlap.
 #endif // FFT_512_2_WIN
 
 #ifdef FFT_512_3_WIN
@@ -223,11 +233,6 @@ void audioDriver(){
 		dataOut(32, RxShiftBufferPtr, 240);	// For 256pt 3. Window Overlap.
 #endif // FFT_512_5_WIN
 //		dataOut(32, RxShiftBufferPtr, 112);
-
-		// Move Rx2Buffer to RxBuffer
-		for (int index = 0; index < 512; index++) {
-			RxShiftBufferPtr[index] = Rx2ShiftBufferPtr[index];
-		}
 	}
 }
 
@@ -284,35 +289,31 @@ void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset) {
 
 // adjust pitch based on counter value
 //pitchCounter
-void adjustPitch() {
+void adjustPitch(){
 	int* pitchCounter = (int*)PITCH_CNTR_LOCATION;
 	if (*pitchCounter != 0){
 		// do stuff with the MxBufferPtr to adjust the pitch
 		//RRRRRRRRLLLLLLLL
 		//RRRRRRRR
 		//shift by amount of pitch counter
-		int pitchVal = *pitchCounter;
+int pitchVal = *pitchCounter;
 		if (pitchVal > 0){
 
-#ifdef MIRROR_FFT
+	#ifdef MIRROR_FFT
 			// for positive data shift to the RIGHT
 			// for negative data shift to the LEFT
 			for (int i=0; i<255 - pitchVal;i++){
-				MxBufferPtr[256-i] = MxBufferPtr[256-(i+pitchVal+1)];
+				MxBufferPtr[255-i] = MxBufferPtr[255-(i+pitchVal+1)];
+				MxBufferPtr[511-(255-i)] = MxBufferPtr[511-(255-i-pitchVal)];
 			}
-			for (int i=0; i<254 - pitchVal; i++) {
-				MxBufferPtr[511-(254-i)] = MxBufferPtr[511-(254-i-pitchVal)];
-			}
-			for (int j=1; j<pitchVal;j++){
+			for (int j=0; j<pitchVal;j++){
 				MxBufferPtr[j] = 0;
-			}
-			for (int j=0; j<pitchVal;j++) {
 				MxBufferPtr[511-j]=0;
 			}
 
-#endif
+	#endif
 
-#ifndef MIRROR_FFT
+	#ifndef MIRROR_FFT
 
 			for (int i=0;i<512;i++){
 				MxBufferPtr[511-i] = MxBufferPtr[511-i - pitchVal];
@@ -321,13 +322,14 @@ void adjustPitch() {
 				MxBufferPtr[j] = 0;
 			}
 
-#endif
+	#endif
 		}
 
 		//SHIFT DOWN
 		else{
-			int pitchValPositive = -pitchVal;
+		int pitchValPositive = -pitchVal;
 #ifdef MIRROR_FFT
+
 			for (int i=0; i<255 - pitchValPositive;i++){
 				MxBufferPtr[i] = MxBufferPtr[i+pitchValPositive];
 				MxBufferPtr[511-i] = MxBufferPtr[511-(i+pitchValPositive)];
@@ -350,5 +352,201 @@ void adjustPitch() {
 
 		}
 
-	}
 }
+}
+
+
+// this function is to increase the volume of a user-specified pitch range (low mid high)
+void equalize(){
+	// define temp variables to store left and right channel data
+	int16_t rChImag, rChReal, lChImag, lChReal = 0;
+	double lChMag, lChPhase, rChMag, rChPhase = 0;
+
+	//this variable tells us which frequency we which to amplify (need to set up with interrupt still)
+	// will have to be a pointer value
+	// can only hold 4 values
+	//if 0 - do not equalize anything
+	//1 - amplify LOW frequency sounds
+	//2 - amplify MID frequency sounds
+	//3 - amplify HIGH frequency sounds
+	u16* equalizePart = (u16*) EQUAL_SEC_LOCATION;
+	int* equalizeCounter = (int*) EQUAL_CNTR_LOCATION;
+	if (*equalizePart!= 0){
+		// want to amplify LOW frequency sounds
+		if (*equalizePart == 1){
+			// for 512 point FFT we define
+			// low frequencies in bins 1 to 85
+			for (int i=427;i<512;i++) {
+				rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
+				rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
+				lChImag = (MxBufferPtr[i] & 0xFFFF0000) >> 16;
+				lChReal = MxBufferPtr[i] & 0xFFFF;
+				
+				// shift to get correct values 
+
+
+				lChMag = sqrt((lChImag*lChImag) + (lChReal*lChReal));
+				lChPhase = atan((double)lChImag/(double)lChReal);
+//				rChMag = sqrt((rChImag*rChImag) + (rChReal*rChReal));
+//				rChPhase = atan((double)rChImag/(double)rChReal);
+
+				// now need to increase magnitude by counter amount
+				if (*equalizeCounter > 0){
+					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
+					rChMag *= (*equalizeCounter);
+				}
+				else if (*equalizeCounter < 0){
+					lChMag /= (-1)*(*equalizeCounter);
+					rChMag /= (-1)*(*equalizeCounter);
+				}
+				//now need to convert back to real/imaginary
+				lChReal = lChMag *cos(lChPhase);
+				lChImag = lChMag *sin(lChPhase);
+//				rChReal = rChMag * cos(rChPhase);
+//				rChImag = rChMag * sin(rChPhase);
+
+				// but back in MxBuf to be sent to IFFT
+				MxBufferPtr[i] = (((uint64_t)rChImag << 48) | ((uint64_t)rChReal << 32) | ((uint64_t)lChImag << 16) | (lChReal));
+
+//				rChImag = (MxBufferPtr[511-i] & 0xFFFF000000000000) >> 48;
+//				rChReal = (MxBufferPtr[511-i] & 0xFFFF00000000) >> 32;
+//				lChImag = (MxBufferPtr[511-i] & 0xFFFF0000) >> 16;
+//				lChReal = MxBufferPtr[511-i] & 0xFFFF;
+//
+//
+//
+//				lChMag = sqrt((lChImag*lChImag) + (lChReal*lChReal));
+//				lChPhase = atan((double)lChImag/(double)lChReal);
+//				rChMag = sqrt((rChImag*rChImag) + (rChReal*rChReal));
+//				rChPhase = atan((double)rChImag/(double)rChReal);
+//
+//
+//				// now need to increase magnitude by counter amount
+//				// now need to increase magnitude by counter amount
+//				if (*equalizeCounter > 0){
+//					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
+//					rChMag *= (*equalizeCounter);
+//				}
+//				else if (*equalizeCounter < 0){
+//					lChMag /= (-1)*(*equalizeCounter);
+//					rChMag /= (-1)*(*equalizeCounter);
+//				}
+//				//now need to convert back to real/imaginary
+//				lChReal = lChMag * cos(lChPhase);
+//				lChImag = lChMag * sin(lChPhase);
+//				rChReal = rChMag * cos(rChPhase);
+//				rChImag = rChMag * sin(rChPhase);
+//
+//				// but back in MxBuf to be sent to IFFT
+//				MxBufferPtr[511-i] = ((rChImag << 48) | (rChReal << 32) | (lChImag << 16) | (lChReal));
+
+			}
+		}
+		// want to amplify MID frequency sounds
+		else if(*equalizePart == 2){
+			for (int i=85;i<171;i++) {
+				rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
+				rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
+				lChImag = (MxBufferPtr[i] & 0xFFFF0000) >> 16;
+				lChReal = MxBufferPtr[i] & 0xFFFF;
+
+				// shift to get correct values
+
+				lChMag = sqrt((lChImag*lChImag) + (lChReal*lChReal));
+				lChPhase = atan(lChImag/lChReal);
+				rChMag = sqrt((rChImag*rChImag) + (rChReal*rChReal));
+				rChPhase = atan(rChImag/rChReal);
+
+				// now need to increase magnitude by counter amount
+				lChMag += (*equalizeCounter); // so just going to add to it rn
+				//now need to convert back to real/imaginary
+				lChReal = lChMag * cos(lChPhase);
+				lChImag = lChMag * sin(lChPhase);
+				rChReal = rChMag * cos(rChPhase);
+				rChImag = rChMag * sin(rChPhase);
+
+				// but back in MxBuf to be sent to IFFT
+				MxBufferPtr[i] = ((rChImag << 48) | (rChReal << 32) | (lChImag << 16) | (lChReal));
+
+				// need to do the same thing for the mirror of the image
+				rChImag = (MxBufferPtr[511-i] & 0xFFFF000000000000) >> 48;
+				rChReal = (MxBufferPtr[511-i] & 0xFFFF00000000) >> 32;
+				lChImag = (MxBufferPtr[511-i] & 0xFFFF0000) >> 16;
+				lChReal = MxBufferPtr[511-i] & 0xFFFF;
+
+
+				lChMag = sqrt((lChImag*lChImag) + (lChReal*lChReal));
+				lChPhase = atan(lChImag/lChReal);
+				rChMag = sqrt((rChImag*rChImag) + (rChReal*rChReal));
+				rChPhase = atan(rChImag/rChReal);
+
+				// now need to increase magnitude by counter amount
+				lChMag += (*equalizeCounter); // so just going to add to it rn
+				//now need to convert back to real/imaginary
+				lChReal = lChMag + cos(lChPhase);
+				lChImag = lChMag + sin(lChPhase);
+				rChReal = rChMag + cos(rChPhase);
+				rChImag = rChMag + sin(rChPhase);
+
+				// but back in MxBuf to be sent to IFFT
+				MxBufferPtr[511-i] = ((rChImag << 48) | (rChReal << 32) | (lChImag << 16) | (lChReal));
+
+			}
+
+		}
+		// want to amplify HIGH frequency sounds
+		else if (*equalizePart == 3){
+			for (int i=171;i<256;i++) {
+				rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
+				rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
+				lChImag = (MxBufferPtr[i] & 0xFFFF0000) >> 16;
+				lChReal = MxBufferPtr[i] & 0xFFFF;
+
+				// shift to get correct values
+
+				lChMag = sqrt((lChImag*lChImag) + (lChReal*lChReal));
+				lChPhase = atan(lChImag/lChReal);
+				rChMag = sqrt((rChImag*rChImag) + (rChReal*rChReal));
+				rChPhase = atan(rChImag/rChReal);
+
+				// now need to increase magnitude by counter amount
+				lChMag += (*equalizeCounter); // so just going to add to it rn
+				//now need to convert back to real/imaginary
+				lChReal = lChMag + cos(lChPhase);
+				lChImag = lChMag + sin(lChPhase);
+				rChReal = rChMag + cos(rChPhase);
+				rChImag = rChMag + sin(rChPhase);
+
+				// but back in MxBuf to be sent to IFFT
+				MxBufferPtr[i] = ((rChImag << 48) | (rChReal << 32) | (lChImag << 16) | (lChReal));
+
+				// need to do the same thing for the mirror of the image
+				rChImag = (MxBufferPtr[511-i] & 0xFFFF000000000000) >> 48;
+				rChReal = (MxBufferPtr[511-i] & 0xFFFF00000000) >> 32;
+				lChImag = (MxBufferPtr[511-i] & 0xFFFF0000) >> 16;
+				lChReal = MxBufferPtr[511-i] & 0xFFFF;
+
+
+				lChMag = sqrt((lChImag*lChImag) + (lChReal*lChReal));
+				lChPhase = atan(lChImag/lChReal);
+				rChMag = sqrt((rChImag*rChImag) + (rChReal*rChReal));
+				rChPhase = atan(rChImag/rChReal);
+
+				// now need to increase magnitude by counter amount
+				lChMag += (*equalizeCounter); // so just going to add to it rn
+				//now need to convert back to real/imaginary
+				lChReal = lChMag + cos(lChPhase);
+				lChImag = lChMag + sin(lChPhase);
+				rChReal = rChMag + cos(rChPhase);
+				rChImag = rChMag + sin(rChPhase);
+
+				// but back in MxBuf to be sent to IFFT
+				MxBufferPtr[511-i] = ((rChImag << 48) | (rChReal << 32) | (lChImag << 16) | (lChReal));
+
+			} // ends for loop
+
+		} // ends if condition for which part to equalize
+	} // ends if condition for if we want to equalize at all
+
+
+} // ends function
