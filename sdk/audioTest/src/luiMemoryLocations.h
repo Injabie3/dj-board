@@ -42,6 +42,8 @@
 #define MX_BUFFER_BASE            		(DDR_BASE + 0x00300000)
 #define MX_SHIFT_BUFFER_BASE            		(DDR_BASE + 0x00310000)
 #define RX_BUFFER_BASE            		(DDR_BASE + 0x00400000)
+#define RX_2_BUFFER_BASE            	(DDR_BASE + 0x00440000)
 #define RX_SHIFT_BUFFER_BASE      		(DDR_BASE + 0x00500000)
+#define RX_2_SHIFT_BUFFER_BASE      	(DDR_BASE + 0x00540000)
 
 #endif /* SRC_LUIMEMORYLOCATIONS_H_ */
