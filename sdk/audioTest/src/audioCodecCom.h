@@ -22,6 +22,8 @@ void dataIn(int samplesToRead, volatile u64* toBuffer, int offset);
 // samplesToSend:	The number of samples to send.
 // fromBuffer:		A pointer to the buffer containing the samples to send.
 // offset:			Start sending samples from the specified offset of the buffer above.
-void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset);
+void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset, bool circularBufferOnly);
+
+void equalize();
 
 #endif // AUDIOCODECCOM_H

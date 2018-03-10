@@ -130,7 +130,10 @@ int circular_buf_get(circular_buf_t * cbuf, uint32_t * data)
 // 1 - Invalid cbuf, buffer is empty, or size not large enough.
 int circular_buf_getSummedTaps(circular_buf_t * cbuf, uint32_t * data, int distanceApart)
 {
-	// TODO Do a check for distanceApart wrt startingIndex
+	// Do a check for distanceApart wrt startingIndex
+	if (4*distanceApart >= cbuf->startingIndex) {
+		return 1;
+	}
     int r = 1;
 
     if(cbuf && data && !circular_buf_empty(*cbuf) && (cbuf->size >= cbuf->startingIndex))
@@ -143,40 +146,18 @@ int circular_buf_getSummedTaps(circular_buf_t * cbuf, uint32_t * data, int dista
     	int tap5Index = (cbuf->tail + cbuf->startingIndex - 4*distanceApart) % cbuf->size;
     	int16_t leftChannel = cbuf->buffer[tap1Index];
     	int16_t rightChannel = cbuf->buffer[tap1Index] >> 16;
-    	int16_t leftChannelTap2 = cbuf->buffer[tap2Index];
-    	int16_t rightChannelTap2 = cbuf->buffer[tap2Index] >> 16;
 
-    	const int16_t TAP2REDUCTION = 1000;
-// TODO Make the following a helper function.
-//    	if (rightChannelTap2 < 0 && rightChannelTap2 <= -TAP2REDUCTION) {
-//    		rightChannelTap2 += TAP2REDUCTION;
-//    	}
-//    	else if (rightChannelTap2 > 0 && rightChannelTap2 >= TAP2REDUCTION) {
-//    		rightChannelTap2 -= TAP2REDUCTION;
-//    	}
-//    	else {
-//    		rightChannelTap2 = 0;
-//    	}
-//
-//    	if (leftChannelTap2 < 0 && leftChannelTap2 <= -TAP2REDUCTION) {
-//    		leftChannelTap2 += TAP2REDUCTION;
-//    	}
-//    	else if (leftChannelTap2 > 0 && leftChannelTap2 >= TAP2REDUCTION) {
-//    		leftChannelTap2 -= TAP2REDUCTION;
-//    	}
-//    	else {
-//    		leftChannelTap2 = 0;
-//    	}
+    	// Progressively, for each tap, reduce the amplitude.
     	leftChannel += (int16_t)(cbuf->buffer[tap2Index]) >> 1;
     	leftChannel += (int16_t)(cbuf->buffer[tap3Index]) >> 2;
     	leftChannel += (int16_t)(cbuf->buffer[tap4Index]) >> 3;
     	leftChannel += (int16_t)(cbuf->buffer[tap5Index]) >> 4;
+
     	rightChannel += (int16_t)(cbuf->buffer[tap2Index] >> 16) >> 1;
 		rightChannel += (int16_t)(cbuf->buffer[tap3Index] >> 16) >> 2;
 		rightChannel += (int16_t)(cbuf->buffer[tap4Index] >> 16) >> 3;
 		rightChannel += (int16_t)(cbuf->buffer[tap5Index] >> 16) >> 4;
-//    	leftChannel += leftChannelTap2;
-//    	rightChannel += rightChannelTap2;
+
         //*data = cbuf->buffer[cbuf->tail];
 		*data = ((uint16_t)(rightChannel) << 16) | (uint16_t)leftChannel;
         cbuf->tail = (cbuf->tail + 1) % cbuf->size;

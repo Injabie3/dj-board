@@ -33,7 +33,9 @@ XGpio* gpioPushButtons;
 XGpio* gpioSwitches;
 int* pitchCounter;
 int* echoCounter;
+int* equalizeCounter;
 int* switchUpEcho = (int*) SWITCH_UP_ECHO;
+int* switchUpPitch = (int*) SWITCH_UP_PITCH;
 
 
 // ##############################
@@ -169,9 +171,16 @@ void registerInterruptHandler(XScuGic* interruptController) {
 }
 
 void setUpInterruptCounters() {
+	// initialize pitch adjustment counter
 	pitchCounter = (int*) PITCH_CNTR_LOCATION;
-	echoCounter = (int*) ECHO_CNTR_LOCATION;
 	*pitchCounter = 0;
+
+	// initalize equalize adjustment counter
+	equalizeCounter = (int*) EQUAL_CNTR_LOCATION;
+	*equalizeCounter = 0;
+
+	// Initialize echo adjustment counter
+	echoCounter = (int*) ECHO_CNTR_LOCATION;
 	*echoCounter = 0;
 }
 
@@ -182,9 +191,12 @@ void setUpInterruptCounters() {
 // This function is what will get called when an interrupt occurs from the switches
 void gpioSwitchesInterruptHandler(void *CallbackRef) {
 	XGpio *gpioPointer = (XGpio *) CallbackRef;
+	u16* equalizeVal = (u16*) EQUAL_SEC_LOCATION;	// What we're going to be equalizing
 	int switches = XGpio_DiscreteRead(gpioPointer, 1);
 	int switchVar = switches;
 
+	// Disable equalize first
+	*equalizeVal = 0; // initialize to 0
 
 	int switchNum = 0;
 	if ((switches & (1 << 4)) != 0) {
@@ -195,9 +207,18 @@ void gpioSwitchesInterruptHandler(void *CallbackRef) {
 	}
 
 	while(switchVar != 0) {
-
 		if ((0x1 & switchVar) == 1) {
 			xil_printf("Switch %d is up!\n\r", switchNum);
+			if (switchNum == 0){
+				*equalizeVal = 1; // this means we want to amplify LOW frequency sounds
+			}
+			else if (switchNum == 1){
+				*equalizeVal = 2; // this means we want to amplify MID frequency sounds
+
+			}
+			else if (switchNum == 2) {
+				*equalizeVal = 3; //this means we want to amplify HIGH frequency sounds
+			}
 		}
 		switchNum++;
 		switchVar >>= 1;
@@ -213,6 +234,8 @@ void gpioSwitchesInterruptHandler(void *CallbackRef) {
 void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 	XGpio *gpioPointer = (XGpio *) CallbackRef;
 	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
+	u16* equalizeVal = (u16*) EQUAL_SEC_LOCATION;
+
 
 	// Get the buttons that are pushed down.
 	u32 buttonStatus = XGpio_DiscreteRead(gpioPointer, 1);
@@ -234,19 +257,36 @@ void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 
 		*plPushButtonEnabled = 1;
 
-		// this tells us that the down button is pressed
-		if ((buttonStatus & (1<<1)) != 0x0) {
-			(*pitchCounter)--;
+		// Only adjust pitch if SW3 is up.
+		if ((*switchUpPitch) == 1) {
+			// this tells us that the down button is pressed
+			if ((buttonStatus & (1<<1)) != 0x0) {
+				(*pitchCounter)--;
+			}
+			// this tells us that the UP button is pressed
+			if ((buttonStatus & (1<<4)) != 0x0){
+				// TODO Put an upper limit on this.
+				(*pitchCounter)++;
+			}
+			// this tells us that the CTR button is pressed
+			if ((buttonStatus & (1<<0)) != 0x0) {
+				*pitchCounter = 0;
+			}
 		}
-		// this tells us that the UP button is pressed
-		if ((buttonStatus & (1<<4)) != 0x0){
-			// TODO Put an upper limit on this.
-			(*pitchCounter)++;
+
+		if ((*equalizeVal) != 0) {
+
+			// This tells us that the down button is pressed.
+			if ((buttonStatus & (1<<1)) != 0x0) {
+				(*equalizeCounter)--;
+			}
+
+			// This tells us that the UP button is pressed.
+			if ((buttonStatus & (1<<4)) != 0x0) {
+				(*equalizeCounter)++;
+			}
 		}
-		// this tells us that the CTR button is pressed
-		if ((buttonStatus & (1<<0)) != 0x0) {
-			*pitchCounter = 0;
-		}
+
 
 		// Only adjust echo if SW4 is up.
 		if ((*switchUpEcho) == 1) {

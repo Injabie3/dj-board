@@ -161,12 +161,12 @@ int main()
 	TxBufferPtr[6] = 0x0000000013c73cde;
 	TxBufferPtr[7] = 0x00000000c0caf5fd;*/
 
-	//audioDriver(); // all the ADC/DAC read/write and FFT stuff taken out of here
+	audioDriver(); // all the ADC/DAC read/write and FFT stuff taken out of here
 
 
 	xil_printf("Successfully ran XAxiDma_SimplePoll Example\r\n");
 
-	audioLoop();
+//	audioLoop();
 
 	cleanup_platform();
 	return 0;
@@ -257,6 +257,7 @@ void audioLoop() {
 	circularBuffer.size = 48000*3;
 	circularBuffer.buffer = (uint32_t*) CIRCULAR_BUFFER_BASE;
 	circular_buf_reset(&circularBuffer);
+	circularBuffer.startingIndex = 24000;
 
 	volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 	for (int index = 0; index < 48000; ) {
