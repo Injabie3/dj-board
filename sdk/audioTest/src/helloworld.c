@@ -251,7 +251,6 @@ int initializePeripherals() {
 // This function is a loop to test the audio with GPIO switches.
 void audioLoop() {
 	int tone = 0;
-	u32* psPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTONS;
 	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
 	circular_buf_t circularBuffer;
 	circularBuffer.size = 48000*3;

@@ -18,10 +18,13 @@ volatile u64 *MxBufferPtr = (u64*)MX_BUFFER_BASE;
 volatile u64 *RxBufferPtr = (u64*)RX_BUFFER_BASE;
 volatile u64 *Rx2BufferPtr = (u64*)RX_2_BUFFER_BASE;
 volatile u64 *RxShiftBufferPtr = (u64*)RX_SHIFT_BUFFER_BASE;
+volatile u32 *RecBufferPtr = (volatile u32*)REC_BUFFER_BASE;
 volatile u64 *Rx2ShiftBufferPtr = (u64*)RX_2_SHIFT_BUFFER_BASE;
 volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 int* echoCounter = (int *) ECHO_CNTR_LOCATION;
 circular_buf_t circularBuffer;
+int *recordCounter = (int*) RECORD_COUNTER;
+int *playBackCounter = (int*) PLAYBACK_COUNTER;
 
 
 // QUICK DEBUG SWITCHES
@@ -202,6 +205,8 @@ void dataIn(int samplesToRead, volatile u64* toBuffer, int offset) {
 	u32 temp = 0;
 	u32 tempLeft = 0;
 	u32 tempRight = 0;
+	u32* psLeftPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_LEFT;
+
 	while (dataIn < samplesToRead){
 		// check if the ADC FIFO is not empty
 		if ((AUDIOCHIP[0] & 1<<2)==0){
@@ -214,6 +219,17 @@ void dataIn(int samplesToRead, volatile u64* toBuffer, int offset) {
 			tempRight>>=16;
 			toBuffer[offset+dataIn] = (((u64)tempRight << 32) | tempLeft);
 			dataIn++;
+			// want to record data in for how long button is being held down or a maximum of seconds
+			if ((*psLeftPushButtonEnabled) && (*recordCounter < 480000)){
+				// want to write samples for 5 seconds to a recording buffer
+				RecBufferPtr[*recordCounter] = temp;
+				(*recordCounter)++;
+			}
+			else {
+				*psLeftPushButtonEnabled = 0;
+
+				*recordCounter = 0;
+			}
 		}
 	}
 }
@@ -229,10 +245,19 @@ void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset, bool circu
 	u32 tempLeft = 0;
 	u32 tempRight = 0;
 	int echoAmount = *echoCounter;
+	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
+
 	//now we want to check the DAC
 	while(dataOut < samplesToSend){
 		// if DAC FIFO is not FULL we can write data to it
 		if ((AUDIOCHIP[0] & 1<<5)==0) {
+			if ((*psRightPushButtonEnabled) && ((*playBackCounter) < 480000)){
+				AUDIOCHIP[1] = RecBufferPtr[*playBackCounter];
+				(*playBackCounter)++;
+			}
+			else {
+				*psRightPushButtonEnabled = 0;
+				*playBackCounter = 0;
 			tempRight = fromBuffer[offset+dataOut]>>16;
 			tempLeft = fromBuffer[offset+dataOut];
 			temp = (tempRight & 0xFFFF0000)| (tempLeft & 0xFFFF);
@@ -243,7 +268,10 @@ void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset, bool circu
 					circular_buf_getSummedTaps(&circularBuffer, &AUDIOCHIP[1], echoAmount*120);
 			}
 			circular_buf_put(&circularBuffer, temp);
+
 			//AUDIOCHIP[1] = temp;
+
+		}
 			dataOut++;
 		}
 	}

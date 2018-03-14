@@ -34,8 +34,12 @@ XGpio* gpioSwitches;
 int* pitchCounter;
 int* echoCounter;
 int* equalizeCounter;
+int* recordCounter;
+int* playBackCounter;
 int* switchUpEcho = (int*) SWITCH_UP_ECHO;
 int* switchUpPitch = (int*) SWITCH_UP_PITCH;
+u32* psLeftPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_LEFT;
+u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
 
 
 // ##############################
@@ -101,7 +105,7 @@ int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int 
 	XGpioPs_SetOutputEnablePin(gpio, pin, 0x0);
 
 	// Enable the GPIO interrupt for the pin to be on rising edge.
-	XGpioPs_SetIntrTypePin(gpio, pin, XGPIOPS_IRQ_TYPE_EDGE_RISING);
+	XGpioPs_SetIntrTypePin(gpio, pin, XGPIOPS_IRQ_TYPE_EDGE_BOTH);
 	XGpioPs_IntrEnablePin(gpio, pin);
 
 
@@ -182,6 +186,16 @@ void setUpInterruptCounters() {
 	// Initialize echo adjustment counter
 	echoCounter = (int*) ECHO_CNTR_LOCATION;
 	*echoCounter = 0;
+
+	// Initialize record counter to 0
+	recordCounter = (int*) RECORD_COUNTER;
+	*recordCounter = 0;
+
+	playBackCounter = (int*) PLAYBACK_COUNTER;
+	*playBackCounter = 0;
+
+	*psLeftPushButtonEnabled = 0;
+	*psRightPushButtonEnabled = 0;
 }
 
 // #######################################
@@ -326,22 +340,30 @@ void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 // This function is what will get called when an interrupt occurs from the 2 push buttons on the PS side.
 void gpioPushButtonsPSInterruptHandler(void *CallbackRef) {
 	XGpioPs* gpio = (XGpioPs*) CallbackRef;
-	u32* psPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTONS;
-	u32 leftButton = XGpioPs_ReadPin(gpio, 50);
-	u32 rightButton = XGpioPs_ReadPin(gpio, 51);
+	u32* psLeftPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_LEFT;
+	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
+	u32 leftButton = XGpioPs_ReadPin(gpio, 50); // this button is for RECORD
+	u32 rightButton = XGpioPs_ReadPin(gpio, 51); // this button is for PLAYBACK
 
 	if (ignoreButtonPress == 0) {
-		if(leftButton == 1 || rightButton == 1) {
+		// b
+		if(leftButton == 1) {
 #ifdef LUI_DEBUG
-			print("PS Button pressed!\n\r");
+			print("Record Button pressed!\n\r");
 #endif // LUI_DEBUG
-			*psPushButtonEnabled = 1;
+			*psLeftPushButtonEnabled = 1;
 		}
+
+		else if (rightButton == 1){
+			*psRightPushButtonEnabled = 1;
+		}
+
 		else {
 #ifdef LUI_DEBUG
 			print("PS Button released!\n\r");
 #endif // LUI_DEBUG
-			*psPushButtonEnabled = 0;
+			*psLeftPushButtonEnabled = 0;
+			*psRightPushButtonEnabled = 0;
 		}
 		if (timerPointer) {
 			ignoreButtonPress = 1;
