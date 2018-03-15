@@ -25,6 +25,18 @@ set_property IOSTANDARD LVCMOS33 [get_ports AC_MCLK]
 set_property IOSTANDARD LVCMOS33 [get_ports CLK_100]
 
 # ----------------------------------------------------------------------------
+# User LEDs - Bank 33
+# ---------------------------------------------------------------------------- 
+set_property PACKAGE_PIN T22 [get_ports {led_0}];  # "LD0"
+#set_property PACKAGE_PIN T21 [get_ports {LD1}];  # "LD1"
+#set_property PACKAGE_PIN U22 [get_ports {LD2}];  # "LD2"
+#set_property PACKAGE_PIN U21 [get_ports {LD3}];  # "LD3"
+#set_property PACKAGE_PIN V22 [get_ports {LD4}];  # "LD4"
+#set_property PACKAGE_PIN W22 [get_ports {LD5}];  # "LD5"
+#set_property PACKAGE_PIN U19 [get_ports {LD6}];  # "LD6"
+#set_property PACKAGE_PIN U14 [get_ports {LD7}];  # "LD7"
+
+# ----------------------------------------------------------------------------
 # User Push Buttons - Bank 34
 # ---------------------------------------------------------------------------- 
 set_property PACKAGE_PIN P16 [get_ports {btns_5bits[0]}];  # "BTNC"
@@ -45,5 +57,6 @@ set_property PACKAGE_PIN H18 [get_ports {sws_8bits[5]}];  # "SW5"
 set_property PACKAGE_PIN H17 [get_ports {sws_8bits[6]}];  # "SW6"
 set_property PACKAGE_PIN M15 [get_ports {sws_8bits[7]}];  # "SW7"
 
+set_property IOSTANDARD LVCMOS33 [get_ports -of_objects [get_iobanks 33]];
 set_property IOSTANDARD LVCMOS18 [get_ports -of_objects [get_iobanks 34]];
 set_property IOSTANDARD LVCMOS18 [get_ports -of_objects [get_iobanks 35]];
