@@ -36,28 +36,40 @@ entity beatDetector is
         threshold:  integer := 4
     );
     port (
-        S_tData:    in std_logic_vector(63 downto 0);
-        S_tReady:   out std_logic;
-        S_tValid:   in std_logic;
-        S_tLast:    in std_logic;
-        M_tData:    out std_logic_vector(63 downto 0);
-        M_tReady:   in std_logic;
-        M_tValid:   out std_logic;
-        M_tLast:    out std_logic;
+        reset:      in std_logic;   -- Active low reset.
+        clk:        in std_logic;
+        
         isFft:      in std_logic; -- Take a slice from gpioFftConfig.
         led:        out std_logic;
         
+        -- Passthrough and tap signals.
+        S_fft_tData:        in std_logic_vector(63 downto 0);
+        S_fft_tReady:       out std_logic;
+        S_fft_tValid:       in std_logic;
+        S_fft_tLast:        in std_logic;
+        
+        M_dma_tData:        out std_logic_vector(63 downto 0);
+        M_dma_tReady:       in std_logic;
+        M_dma_tValid:       out std_logic;
+        M_dma_tLast:        out std_logic;
+
+        -- Configuration signals
+        -- Bits 40 downto 32:   Bin (unsigned - 9 bits)
+        -- Bits 31 downto 0:    Threshold (unsigned - 32 bits)
+        S_config_tData:     in std_logic_vector(40 downto 0);
+        S_config_tValid:    in std_logic;
+        
         -- Signals to and from the complex multiplier
-        complexATDataIn:    out std_logic_vector(31 downto 0);
-        complexBTDataIn:    out std_logic_vector(31 downto 0);
-        complexTValidIn:    out std_logic;
+        M_complexA_tData:   out std_logic_vector(31 downto 0);
+        M_complexB_tData:   out std_logic_vector(31 downto 0);
+        M_complexA_tValid:  out std_logic;
+        M_complexB_tValid:  out std_logic;
         
-        complexTDataOut:    in std_logic_vector(31 downto 0);
-        complexTValidOut:   in std_logic;
-        complexTReadyOut:   out std_logic;
+        S_complexO_tData:   in std_logic_vector(63 downto 0);
+        S_complexO_tValid:  in std_logic;
+        S_complexO_tReady:  out std_logic
         
-        reset:      in std_logic;   -- Active low reset.
-        clk:        in std_logic
+
     );
 end beatDetector;
 
@@ -70,9 +82,11 @@ architecture behavioural of beatDetector is
     -- #############
     -- # REGISTERS #
     -- #############
-    signal counterReg:          unsigned(8 downto 0) := to_unsigned(0,9); -- 2^9 is 512.  We could use 256 here.
+    signal counterReg:          unsigned(8 downto 0) := to_unsigned(0, 9); -- 2^9 is 512.  We could use 256 here.
+    signal binReg:              unsigned(8 downto 0) := to_unsigned(4, 9);
     signal tDataReg:            std_logic_vector(31 downto 0);
-    signal magReg:              unsigned(31 downto 0);  
+    signal magReg:              unsigned(31 downto 0);
+    signal thresholdReg:        unsigned(31 downto 0);
     signal ledReg:              std_logic; -- Only keeping 1 LED on in this case, you can use more in the upper layers.
 
     -- ####################
@@ -97,10 +111,10 @@ begin
     -- The AXI-Stream interface is just a passthrough
     -- We could also take a tap off of it, which may save some resources, but we can
     -- change this afterwards nbd.
-    M_tData     <= S_tData;
-    S_tReady    <= M_tReady;
-    M_tValid    <= S_tValid;
-    M_tLast     <= S_tLast;
+    M_dma_tData     <= S_fft_tData;
+    S_fft_tReady    <= M_dma_tReady;
+    M_dma_tValid    <= S_fft_tValid;
+    M_dma_tLast     <= S_fft_tLast;
     led         <= ledReg;
     led         <= ledReg;
     
@@ -111,7 +125,7 @@ begin
     begin
         -- Nothing changes for this part.
         -- This is a+jb
-        complexATDataIn <= tDataReg;
+        M_complexA_tData <= tDataReg;
         
         -- For the other input to the complex multiplier, we will negate the imaginary part.
         -- This will be a-jb
@@ -121,7 +135,7 @@ begin
         -- Negate the imaginary part.
         imaginaryValue := -imaginaryValue;
         
-        complexBTDataIn <= std_logic_vector(imaginaryValue) & std_logic_vector(realValue);
+        M_complexB_tData <= std_logic_vector(imaginaryValue) & std_logic_vector(realValue);
         
     end process;
     
@@ -132,10 +146,12 @@ begin
         if(rising_edge(clk)) then
             if(reset = '0') then -- Active low synchronous reset.
                 PS <= Idle;
-                counterReg  <= to_unsigned(0, counterReg'length);
-                tDataReg    <= x"00000000";
-                magReg      <= to_unsigned(0, magReg'length);
-                ledReg      <= '0';
+                counterReg      <= to_unsigned(0, counterReg'length);
+                binReg          <= to_unsigned(4, binReg'length);
+                tDataReg        <= x"00000000";
+                magReg          <= to_unsigned(0, magReg'length);
+                thresholdReg    <= to_unsigned(2097152, thresholdReg'length); -- 2^21
+                ledReg          <= '0';
                 
             else
                 PS <= NS;
@@ -146,11 +162,16 @@ begin
                 end if;
                 
                 if tDataLoad = '1' then
-                    tDataReg <= S_tData(31 downto 0); -- Only take one channel.
+                    tDataReg <= S_fft_tData(31 downto 0); -- Only take one channel.
                 end if;
                 
                 if magLoad = '1' then
-                    magReg <= unsigned(complexTDataOut);
+                    magReg <= unsigned(S_complexO_tData(31 downto 0));
+                end if;
+                
+                if S_config_tValid ='1' then
+                    binReg          <= unsigned(S_config_tData(40 downto 32));
+                    thresholdReg    <= unsigned(S_config_tData(31 downto 0));
                 end if;
                 
                 if ledLoad = '1' then
@@ -162,14 +183,15 @@ begin
     
     
     -- Input Forming Logic (IFL), Output Forming Logic (OFL)
-    process(PS, S_tValid, isFft, counterReg, complexTValidOut)
+    process(PS, S_fft_tValid, isFft, counterReg, S_complexO_tValid)
         -- No variables to declare.
     begin
         -- Default values to avoid latching
         tDataLoad           <= '0';
         counterLoad         <= '0';
-        complexTValidIn     <= '0';
-        complexTReadyOut    <= '0';
+        M_complexA_tValid   <= '0';
+        M_complexB_tValid   <= '0';
+        S_complexO_TReady   <= '0';
         magLoad             <= '0';
         ledLoad             <= '0';
         ledDReg             <= '0';
@@ -178,7 +200,7 @@ begin
             when Idle =>
                 tDataLoad <= '1';
                 
-                if (S_tValid = '1' and isFft = '1') then
+                if (S_fft_tValid = '1' and isFft = '1') then
                     NS <= GetBin;
                 else
                     NS <= Idle;
@@ -188,41 +210,42 @@ begin
                 tDataLoad <= '1';
                 counterLoad <= '1';
                 
-                if (counterReg < bin) then
+                if (counterReg < binReg) then
                     NS <= GetBin;
                 else -- counterReg >= bin
                     NS <= SendComplex;
                 end if;
             
             when SendComplex =>
-                complexTValidIn <= '1';
+                M_complexA_tValid <= '1';
+                M_complexB_tValid <= '1';
                 NS <= StallComplex;
              
-            when StallComplex =>
-                if (complexTValidOut = '0') then
-                    NS <= StallComplex;
-                else -- complexTValidOut = '1'
+            when StallComplex => -- Wait for the complex multiplier to give a result.
+                if (S_complexO_tValid = '1') then
                     NS <= SaveMagnitude;
+                else -- complexTValidOut = '0'
+                    NS <= StallComplex;
                 end if;
                 
             when SaveMagnitude =>
-                complexTReadyOut <= '1';  -- Do a transaction at the next clock cycle.
+                S_complexO_tReady <= '1';  -- Do a transaction at the next clock cycle.
                 magLoad <= '1';
                 NS <= Compare;
                 
             when Compare =>
                 ledLoad <= '1';
                 
-                if (magReg > threshold) then
+                if (magReg > thresholdReg) then
                     ledDReg <= '1';
-                else -- magReg <= threshold
+                else -- magReg <= thresholdReg
                     ledDReg <= '0';
                 end if;
                 
                 NS <= StallValid;
                 
             when StallValid =>
-                if (S_tValid = '1') then
+                if (S_fft_tValid = '1') then
                     NS <= StallValid;
                 else -- S_tValid = '0'
                     NS <= Idle;
