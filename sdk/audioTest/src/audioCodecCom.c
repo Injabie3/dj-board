@@ -23,6 +23,7 @@ volatile u64 *Rx2ShiftBufferPtr = (u64*)RX_2_SHIFT_BUFFER_BASE;
 volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 int* echoCounter = (int *) ECHO_CNTR_LOCATION;
 circular_buf_t circularBuffer;
+int *maxRecordCounter = (int*) MAX_RECORD_COUNTER;
 int *recordCounter = (int*) RECORD_COUNTER;
 int *playBackCounter = (int*) PLAYBACK_COUNTER;
 
@@ -43,6 +44,9 @@ int *playBackCounter = (int*) PLAYBACK_COUNTER;
 //#define FFT_512_3_WIN 		// FFT 512pt 3. Window Overlap
 //#define FFT_512_4_WIN 		// FFT 512pt 4. Window Overlap
 //#define FFT_512_5_WIN 		// FFT 512pt 5. Window Overlap
+#define OVERLAY
+
+
 
 void audioDriver(){
 	int configStatus, status;
@@ -220,15 +224,21 @@ void dataIn(int samplesToRead, volatile u64* toBuffer, int offset) {
 			toBuffer[offset+dataIn] = (((u64)tempRight << 32) | tempLeft);
 			dataIn++;
 			// want to record data in for how long button is being held down or a maximum of seconds
-			if ((*psLeftPushButtonEnabled) && (*recordCounter < 480000)){
+			if ((*psLeftPushButtonEnabled)) {
+				if ((*maxRecordCounter) < 480000){
 				// want to write samples for 5 seconds to a recording buffer
-				RecBufferPtr[*recordCounter] = temp;
+				RecBufferPtr[*maxRecordCounter] = temp;
 				(*recordCounter)++;
+				(*maxRecordCounter)++;
+				}
+				else {
+				   *maxRecordCounter = 0;
+				   *psLeftPushButtonEnabled = 0;
+				}
 			}
 			else {
-				*psLeftPushButtonEnabled = 0;
-
-				*recordCounter = 0;
+				*maxRecordCounter = 0;
+//				// once the button is released
 			}
 		}
 	}
@@ -242,18 +252,29 @@ void dataIn(int samplesToRead, volatile u64* toBuffer, int offset) {
 void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset, bool circularBufferOnly) {
 	int dataOut = 0;
 	u32 temp = 0;
-	u32 tempLeft = 0;
-	u32 tempRight = 0;
+	int16_t tempLeft = 0;
+	int16_t tempRight = 0;
+	int16_t tempLeftRec = 0;
+	int16_t tempRightRec = 0;
 	int echoAmount = *echoCounter;
 	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
 
 	//now we want to check the DAC
 	while(dataOut < samplesToSend){
 		// if DAC FIFO is not FULL we can write data to it
+#ifndef OVERLAY
 		if ((AUDIOCHIP[0] & 1<<5)==0) {
-			if ((*psRightPushButtonEnabled) && ((*playBackCounter) < 480000)){
+			if (*psRightPushButtonEnabled){
+
+			 if ((*playBackCounter) < *recordCounter){
 				AUDIOCHIP[1] = RecBufferPtr[*playBackCounter];
 				(*playBackCounter)++;
+			 }
+			 else {
+				 //*recordCounter = 0;
+				 *playBackCounter = 0;
+				 *psRightPushButtonEnabled = 0;
+			 }
 			}
 			else {
 				*psRightPushButtonEnabled = 0;
@@ -272,6 +293,39 @@ void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset, bool circu
 			//AUDIOCHIP[1] = temp;
 
 		}
+#endif
+#ifdef OVERLAY
+		if ((AUDIOCHIP[0] & 1<<5)==0) {
+
+
+				tempRight = fromBuffer[offset+dataOut]>>32;
+				tempLeft = fromBuffer[offset+dataOut];
+				if (*psRightPushButtonEnabled){
+
+				 if ((*playBackCounter) < *recordCounter){
+					tempLeftRec = (RecBufferPtr[*playBackCounter]) & 0xFFFF;
+					tempRightRec = (RecBufferPtr[*playBackCounter])>>16;
+					(*playBackCounter)++;
+				 	 }
+				 else {
+					 //*recordCounter = 0;
+					 *playBackCounter = 0;
+					 *psRightPushButtonEnabled = 0;
+				 	 }
+				}
+
+				temp = ((tempRight+tempRightRec)<<16)| ((tempLeft+tempLeftRec) & 0xFFFF);
+				if (!circularBufferOnly) {
+					if (echoAmount == 0)
+						circular_buf_get(&circularBuffer, &AUDIOCHIP[1]);
+					else
+						circular_buf_getSummedTaps(&circularBuffer, &AUDIOCHIP[1], echoAmount*120);
+				}
+				circular_buf_put(&circularBuffer, temp);
+
+				//AUDIOCHIP[1] = temp;
+
+#endif
 			dataOut++;
 		}
 	}

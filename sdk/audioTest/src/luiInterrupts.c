@@ -35,6 +35,7 @@ int* pitchCounter;
 int* echoCounter;
 int* equalizeCounter;
 int* recordCounter;
+int* maxRecordCounter;
 int* playBackCounter;
 int* switchUpEcho = (int*) SWITCH_UP_ECHO;
 int* switchUpPitch = (int*) SWITCH_UP_PITCH;
@@ -187,9 +188,12 @@ void setUpInterruptCounters() {
 	echoCounter = (int*) ECHO_CNTR_LOCATION;
 	*echoCounter = 0;
 
-	// Initialize record counter to 0
+	// Initialize record counter, maximum record counter and playback counter to 0
 	recordCounter = (int*) RECORD_COUNTER;
 	*recordCounter = 0;
+
+	maxRecordCounter = (int*) MAX_RECORD_COUNTER;
+	*maxRecordCounter = 0;
 
 	playBackCounter = (int*) PLAYBACK_COUNTER;
 	*playBackCounter = 0;
@@ -352,6 +356,7 @@ void gpioPushButtonsPSInterruptHandler(void *CallbackRef) {
 			print("Record Button pressed!\n\r");
 #endif // LUI_DEBUG
 			*psLeftPushButtonEnabled = 1;
+			*recordCounter = 0;
 		}
 
 		else if (rightButton == 1){
@@ -360,7 +365,7 @@ void gpioPushButtonsPSInterruptHandler(void *CallbackRef) {
 
 		else {
 #ifdef LUI_DEBUG
-			print("PS Button released!\n\r");
+			print("PS Left Button released!\n\r");
 #endif // LUI_DEBUG
 			*psLeftPushButtonEnabled = 0;
 			*psRightPushButtonEnabled = 0;

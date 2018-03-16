@@ -34,7 +34,8 @@
 #define SWITCH_UP_ECHO					LUI_DDR_BASE_ADDR + 0x1C
 #define SWITCH_UP_PITCH					LUI_DDR_BASE_ADDR + 0x20
 #define RECORD_COUNTER                  LUI_DDR_BASE_ADDR + 0x24 // this counter can go up to 48000 (*10)
-#define PLAYBACK_COUNTER                LUI_DDR_BASE_ADDR + 0x105000
+#define MAX_RECORD_COUNTER              LUI_DDR_BASE_ADDR + 0x28
+#define PLAYBACK_COUNTER                LUI_DDR_BASE_ADDR + 0x2C
 
 //defines for memory locations to store audio data
 #define DDR_BASE                  		XPAR_PS7_DDR_0_S_AXI_BASEADDR
