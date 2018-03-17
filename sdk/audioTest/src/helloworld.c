@@ -68,6 +68,8 @@
 #define DEVICE_ID_MIDDLEC 				XPAR_AXI_GPIO_MIDDLEC_DEVICE_ID
 #define DEVICE_ID_SWITCHES 				XPAR_AXI_GPIO_SWITCHES_DEVICE_ID
 #define DEVICE_ID_PUSHBUTTONS			XPAR_AXI_GPIO_BUTTONS_DEVICE_ID
+#define DEVICE_ID_BEATDETECTOR01		XPAR_AXI_GPIO_BEATDETECTOR01_CONFIG_DEVICE_ID
+#define DEVICE_ID_BEATDETECTOR02		XPAR_AXI_GPIO_BEATDETECTOR02_CONFIG_DEVICE_ID
 #define DEVICE_ID_PS_PUSHBUTTONS		XPAR_XGPIOPS_0_DEVICE_ID
 #define DEVICE_ID_FFT_GPIO				XPAR_AXI_GPIO_FFT_CONFIG_DEVICE_ID
 #define DEVICE_ID_INTERRUPTCONTROLLER	XPAR_INTC_0_DEVICE_ID
@@ -80,6 +82,8 @@
 static XGpio gpioMiddleC; 					// AXI GPIO object for the middle C note.
 static XGpio gpioSwitches;					// AXI GPIO object for the switches
 static XGpio gpioPushButtons; 				// AXI GPIO object for the push buttons
+static XGpio gpioBeatDetector01;			// AXI GPIO object for beat detector 1.
+static XGpio gpioBeatDetector02;			// AXI GPIO object for beat detector 2.
 
 //XIntc interruptController; 				// AXI Interrupt Controller object.
 static XScuGic_Config *interruptControllerConfig;
@@ -125,6 +129,13 @@ int main()
     init_platform();
 
     initializePeripherals();
+
+    // Set up the beat detector to detect certain bins
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x10000); // 2^18
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0xA); // Valid and bin 20.
+
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x10000); // 2^18
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x0); // Valid and bin 20.
 
     //setupInterruptSystemXIntc(&interruptController, &gpioSwitches, XPAR_INTC_0_GPIO_1_VEC_ID, gpioSwitchesInterruptHandler);
 	// Set up interrupt handler for switches.
@@ -219,6 +230,20 @@ int initializePeripherals() {
 		return XST_FAILURE;
 	}
 
+	// Initialize AXI GPIO slave that is connected to custom beat detector 01.
+	status = XGpio_Initialize(&gpioBeatDetector01, DEVICE_ID_BEATDETECTOR01);
+	if (status != XST_SUCCESS) {
+		xil_printf("Gpio Beat Detector Initialization Failed\r\n");
+		return XST_FAILURE;
+	}
+
+	// Initialize AXI GPIO slave that is connected to custom beat detector 02.
+	status = XGpio_Initialize(&gpioBeatDetector02, DEVICE_ID_BEATDETECTOR02);
+	if (status != XST_SUCCESS) {
+		xil_printf("Gpio Beat Detector Initialization Failed\r\n");
+		return XST_FAILURE;
+	}
+
 	// Initialize PS GPIO.
 	gpioPSPushButtonsConfig = XGpioPs_LookupConfig(DEVICE_ID_PS_PUSHBUTTONS);
 	if (gpioPSPushButtonsConfig == NULL) {
@@ -251,7 +276,6 @@ int initializePeripherals() {
 // This function is a loop to test the audio with GPIO switches.
 void audioLoop() {
 	int tone = 0;
-	u32* psPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTONS;
 	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
 	circular_buf_t circularBuffer;
 	circularBuffer.size = 48000*3;

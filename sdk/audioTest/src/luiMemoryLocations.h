@@ -24,7 +24,8 @@
 
 #define LUI_DDR_BASE_ADDR				XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x700000
 #define LUI_MEM_SWITCHES 				LUI_DDR_BASE_ADDR + 0x00
-#define LUI_MEM_PS_PUSHBUTTONS			LUI_DDR_BASE_ADDR + 0x04
+#define LUI_MEM_PS_PUSHBUTTON_LEFT		LUI_DDR_BASE_ADDR + 0x04
+#define LUI_MEM_PS_PUSHBUTTON_RIGHT		LUI_DDR_BASE_ADDR + 0x05
 #define LUI_MEM_PL_PUSHBUTTONS			LUI_DDR_BASE_ADDR + 0x08
 #define PITCH_CNTR_LOCATION				LUI_DDR_BASE_ADDR + 0x0C
 #define ECHO_CNTR_LOCATION				LUI_DDR_BASE_ADDR + 0x10
@@ -32,18 +33,22 @@
 #define EQUAL_SEC_LOCATION    			LUI_DDR_BASE_ADDR + 0x18
 #define SWITCH_UP_ECHO					LUI_DDR_BASE_ADDR + 0x1C
 #define SWITCH_UP_PITCH					LUI_DDR_BASE_ADDR + 0x20
+#define RECORD_COUNTER                  LUI_DDR_BASE_ADDR + 0x24 // this counter can go up to 48000 (*10)
+#define MAX_RECORD_COUNTER              LUI_DDR_BASE_ADDR + 0x28
+#define PLAYBACK_COUNTER                LUI_DDR_BASE_ADDR + 0x2C
 
 //defines for memory locations to store audio data
 #define DDR_BASE                  		XPAR_PS7_DDR_0_S_AXI_BASEADDR
 #define CIRCULAR_BUFFER_BASE			(DDR_BASE + 0x00600000)
 #define TX_BUFFER_BASE             		(DDR_BASE + 0x00100000)
-#define TX_BUFFER_WINDOWED_BASE         (DDR_BASE + 0x00200000)
-#define MX_BUFFER_BASE            		(DDR_BASE + 0x00300000)
-#define MX_SHIFT_BUFFER_BASE            (DDR_BASE + 0x00310000)
-#define RX_BUFFER_BASE            		(DDR_BASE + 0x00400000)
-#define RX_2_BUFFER_BASE            	(DDR_BASE + 0x00440000)
-#define RX_SHIFT_BUFFER_BASE      		(DDR_BASE + 0x00500000)
-#define RX_2_SHIFT_BUFFER_BASE      	(DDR_BASE + 0x00540000)
+#define TX_BUFFER_WINDOWED_BASE         (DDR_BASE + 0x00103000)
+#define MX_BUFFER_BASE            		(DDR_BASE + 0x00106000)
+#define MX_SHIFT_BUFFER_BASE            (DDR_BASE + 0x00109000)
+#define RX_BUFFER_BASE            		(DDR_BASE + 0x001C0000)
+#define RX_2_BUFFER_BASE            	(DDR_BASE + 0x00200000)
+#define RX_SHIFT_BUFFER_BASE      		(DDR_BASE + 0x00203000)
+#define RX_2_SHIFT_BUFFER_BASE      	(DDR_BASE + 0x00206000)
+#define REC_BUFFER_BASE      	        (DDR_BASE + 0x00209000) // this will need 1.92MB of space for a 10 second sample
 
 #endif /* SRC_LUIMEMORYLOCATIONS_H_ */
 

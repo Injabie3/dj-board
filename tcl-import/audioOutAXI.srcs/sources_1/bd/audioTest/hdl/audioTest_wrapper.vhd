@@ -1,7 +1,7 @@
 --Copyright 1986-2017 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2017.3 (win64) Build 2018833 Wed Oct  4 19:58:22 MDT 2017
---Date        : Thu Mar 15 23:12:32 2018
+--Date        : Fri Mar 16 21:15:51 2018
 --Host        : Lui-Ryan-New running 64-bit major release  (build 9200)
 --Command     : generate_target audioTest_wrapper.bd
 --Design      : audioTest_wrapper
@@ -44,8 +44,11 @@ entity audioTest_wrapper is
     FIXED_IO_ps_clk : inout STD_LOGIC;
     FIXED_IO_ps_porb : inout STD_LOGIC;
     FIXED_IO_ps_srstb : inout STD_LOGIC;
+    LD0 : out STD_LOGIC;
+    LD1 : out STD_LOGIC;
+    LD2 : out STD_LOGIC;
+    LD3 : out STD_LOGIC;
     btns_5bits : in STD_LOGIC_VECTOR ( 4 downto 0 );
-    led_0 : out STD_LOGIC;
     sws_8bits : in STD_LOGIC_VECTOR ( 7 downto 0 )
   );
 end audioTest_wrapper;
@@ -86,7 +89,10 @@ architecture STRUCTURE of audioTest_wrapper is
     AC_SDA : inout STD_LOGIC;
     btns_5bits : in STD_LOGIC_VECTOR ( 4 downto 0 );
     sws_8bits : in STD_LOGIC_VECTOR ( 7 downto 0 );
-    led_0 : out STD_LOGIC
+    LD0 : out STD_LOGIC;
+    LD2 : out STD_LOGIC;
+    LD3 : out STD_LOGIC;
+    LD1 : out STD_LOGIC
   );
   end component audioTest;
 begin
@@ -123,8 +129,11 @@ audioTest_i: component audioTest
       FIXED_IO_ps_clk => FIXED_IO_ps_clk,
       FIXED_IO_ps_porb => FIXED_IO_ps_porb,
       FIXED_IO_ps_srstb => FIXED_IO_ps_srstb,
+      LD0 => LD0,
+      LD1 => LD1,
+      LD2 => LD2,
+      LD3 => LD3,
       btns_5bits(4 downto 0) => btns_5bits(4 downto 0),
-      led_0 => led_0,
       sws_8bits(7 downto 0) => sws_8bits(7 downto 0)
     );
 end STRUCTURE;

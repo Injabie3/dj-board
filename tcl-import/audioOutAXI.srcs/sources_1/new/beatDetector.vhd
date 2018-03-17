@@ -42,7 +42,9 @@ entity beatDetector is
         isFft:      in std_logic; -- Take a slice from gpioFftConfig.
         led:        out std_logic;
         
-        -- Passthrough and tap signals.
+        -- ##########################
+        -- # AXI-STREAM PASSTHROUGH #
+        -- ##########################
         S_fft_tData:        in std_logic_vector(63 downto 0);
         S_fft_tReady:       out std_logic;
         S_fft_tValid:       in std_logic;
@@ -53,13 +55,17 @@ entity beatDetector is
         M_dma_tValid:       out std_logic;
         M_dma_tLast:        out std_logic;
 
-        -- Configuration signals
-        -- Bits 40 downto 32:   Bin (unsigned - 9 bits)
-        -- Bits 31 downto 0:    Threshold (unsigned - 32 bits)
+        -- ############################
+        -- # AXI-STREAM CONFIGURATION #
+        -- ############################
+        -- Bits 40 downto 32:   Bin Number              (unsigned - 9 bits)
+        -- Bits 31 downto 0:    Magnitude Threshold     (unsigned - 32 bits)
         S_config_tData:     in std_logic_vector(40 downto 0);
         S_config_tValid:    in std_logic;
         
-        -- Signals to and from the complex multiplier
+        -- ##############################
+        -- # COMPLEX MULTIPLIER SIGNALS #
+        -- ##############################
         M_complexA_tData:   out std_logic_vector(31 downto 0);
         M_complexB_tData:   out std_logic_vector(31 downto 0);
         M_complexA_tValid:  out std_logic;
@@ -115,7 +121,6 @@ begin
     S_fft_tReady    <= M_dma_tReady;
     M_dma_tValid    <= S_fft_tValid;
     M_dma_tLast     <= S_fft_tLast;
-    led         <= ledReg;
     led         <= ledReg;
     
     -- The following process will help us get a+jb and a-jb
@@ -188,6 +193,7 @@ begin
     begin
         -- Default values to avoid latching
         tDataLoad           <= '0';
+        counterInit         <= '0';
         counterLoad         <= '0';
         M_complexA_tValid   <= '0';
         M_complexB_tValid   <= '0';
@@ -199,6 +205,7 @@ begin
         case PS is
             when Idle =>
                 tDataLoad <= '1';
+                counterInit <= '1';
                 
                 if (S_fft_tValid = '1' and isFft = '1') then
                     NS <= GetBin;
