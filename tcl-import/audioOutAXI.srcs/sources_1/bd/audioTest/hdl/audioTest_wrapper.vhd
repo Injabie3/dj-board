@@ -1,7 +1,7 @@
 --Copyright 1986-2017 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2017.3 (win64) Build 2018833 Wed Oct  4 19:58:22 MDT 2017
---Date        : Fri Mar 16 21:15:51 2018
+--Date        : Wed Mar 21 22:22:13 2018
 --Host        : Lui-Ryan-New running 64-bit major release  (build 9200)
 --Command     : generate_target audioTest_wrapper.bd
 --Design      : audioTest_wrapper
@@ -48,6 +48,11 @@ entity audioTest_wrapper is
     LD1 : out STD_LOGIC;
     LD2 : out STD_LOGIC;
     LD3 : out STD_LOGIC;
+    VGA_B : out STD_LOGIC_VECTOR ( 3 downto 0 );
+    VGA_G : out STD_LOGIC_VECTOR ( 3 downto 0 );
+    VGA_HSYNC : out STD_LOGIC;
+    VGA_R : out STD_LOGIC_VECTOR ( 3 downto 0 );
+    VGA_VSYNC : out STD_LOGIC;
     btns_5bits : in STD_LOGIC_VECTOR ( 4 downto 0 );
     sws_8bits : in STD_LOGIC_VECTOR ( 7 downto 0 )
   );
@@ -89,10 +94,15 @@ architecture STRUCTURE of audioTest_wrapper is
     AC_SDA : inout STD_LOGIC;
     btns_5bits : in STD_LOGIC_VECTOR ( 4 downto 0 );
     sws_8bits : in STD_LOGIC_VECTOR ( 7 downto 0 );
+    LD1 : out STD_LOGIC;
     LD0 : out STD_LOGIC;
-    LD2 : out STD_LOGIC;
     LD3 : out STD_LOGIC;
-    LD1 : out STD_LOGIC
+    LD2 : out STD_LOGIC;
+    VGA_B : out STD_LOGIC_VECTOR ( 3 downto 0 );
+    VGA_G : out STD_LOGIC_VECTOR ( 3 downto 0 );
+    VGA_R : out STD_LOGIC_VECTOR ( 3 downto 0 );
+    VGA_VSYNC : out STD_LOGIC;
+    VGA_HSYNC : out STD_LOGIC
   );
   end component audioTest;
 begin
@@ -133,6 +143,11 @@ audioTest_i: component audioTest
       LD1 => LD1,
       LD2 => LD2,
       LD3 => LD3,
+      VGA_B(3 downto 0) => VGA_B(3 downto 0),
+      VGA_G(3 downto 0) => VGA_G(3 downto 0),
+      VGA_HSYNC => VGA_HSYNC,
+      VGA_R(3 downto 0) => VGA_R(3 downto 0),
+      VGA_VSYNC => VGA_VSYNC,
       btns_5bits(4 downto 0) => btns_5bits(4 downto 0),
       sws_8bits(7 downto 0) => sws_8bits(7 downto 0)
     );

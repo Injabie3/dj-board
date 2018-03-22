@@ -131,10 +131,10 @@ int main()
     initializePeripherals();
 
     // Set up the beat detector to detect certain bins
-    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x10000); // 2^18
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x80000); // 2^18
     XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0xA); // Valid and bin 20.
 
-    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x10000); // 2^18
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x800000); // 2^18
     XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x0); // Valid and bin 20.
 
     //setupInterruptSystemXIntc(&interruptController, &gpioSwitches, XPAR_INTC_0_GPIO_1_VEC_ID, gpioSwitchesInterruptHandler);
@@ -160,7 +160,7 @@ int main()
 	XScuTimer_LoadTimer(&psTimer, 5000);
 	XScuTimer_Start(&psTimer);
 
-    print("Hello World\n\r");
+    print("Hello World from CPU 0\n\r");
 
     // test data
 	/*TxBufferPtr[0] = 0x0000000000004000;

@@ -37,6 +37,28 @@ set_property PACKAGE_PIN U21 [get_ports {LD3}];  # "LD3"
 #set_property PACKAGE_PIN U14 [get_ports {LD7}];  # "LD7"
 
 # ----------------------------------------------------------------------------
+# VGA Output - Bank 33
+# ----------------------------------------------------------------------------
+# Ask Maggie and Steve about the order of the pins. 
+set_property PACKAGE_PIN Y21  [get_ports {VGA_B[0]}];  # "VGA-B" bit 0
+set_property PACKAGE_PIN Y20  [get_ports {VGA_B[1]}];  # "VGA-B" bit 1
+set_property PACKAGE_PIN AB20 [get_ports {VGA_B[2]}];  # "VGA-B" bit 2
+set_property PACKAGE_PIN AB19 [get_ports {VGA_B[3]}];  # "VGA-B" bit 3
+
+set_property PACKAGE_PIN AB22 [get_ports {VGA_G[0]}];  # "VGA-G" bit 0
+set_property PACKAGE_PIN AA22 [get_ports {VGA_G[1]}];  # "VGA-G" bit 1
+set_property PACKAGE_PIN AB21 [get_ports {VGA_G[2]}];  # "VGA-G" bit 2
+set_property PACKAGE_PIN AA21 [get_ports {VGA_G[3]}];  # "VGA-G" bit 3
+
+set_property PACKAGE_PIN V20  [get_ports {VGA_R[0]}];  # "VGA-R" bit 0
+set_property PACKAGE_PIN U20  [get_ports {VGA_R[1]}];  # "VGA-R" bit 1
+set_property PACKAGE_PIN V19  [get_ports {VGA_R[2]}];  # "VGA-R" bit 2
+set_property PACKAGE_PIN V18  [get_ports {VGA_R[3]}];  # "VGA-R" bit 3
+
+set_property PACKAGE_PIN Y19  [get_ports {VGA_VSYNC}]; # "VGA-VSYNC"
+set_property PACKAGE_PIN AA19 [get_ports {VGA_HSYNC}]; # "VGA-HSYNC"
+
+# ----------------------------------------------------------------------------
 # User Push Buttons - Bank 34
 # ---------------------------------------------------------------------------- 
 set_property PACKAGE_PIN P16 [get_ports {btns_5bits[0]}];  # "BTNC"
