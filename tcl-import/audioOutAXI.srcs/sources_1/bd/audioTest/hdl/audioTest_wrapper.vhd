@@ -1,7 +1,7 @@
 --Copyright 1986-2017 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2017.3 (win64) Build 2018833 Wed Oct  4 19:58:22 MDT 2017
---Date        : Tue Mar 20 19:25:48 2018
+--Date        : Thu Mar 22 22:00:34 2018
 --Host        : ensc-pit-45 running 64-bit major release  (build 9200)
 --Command     : generate_target audioTest_wrapper.bd
 --Design      : audioTest_wrapper
@@ -89,10 +89,10 @@ architecture STRUCTURE of audioTest_wrapper is
     AC_SDA : inout STD_LOGIC;
     btns_5bits : in STD_LOGIC_VECTOR ( 4 downto 0 );
     sws_8bits : in STD_LOGIC_VECTOR ( 7 downto 0 );
-    LD0 : out STD_LOGIC;
     LD1 : out STD_LOGIC;
-    LD2 : out STD_LOGIC;
-    LD3 : out STD_LOGIC
+    LD0 : out STD_LOGIC;
+    LD3 : out STD_LOGIC;
+    LD2 : out STD_LOGIC
   );
   end component audioTest;
 begin

@@ -60,7 +60,7 @@ entity audioMixing is
 end audioMixing;
 
 architecture Behavioral of audioMixing is
-    type states is (Idle, SendOriginal, Mix);
+    type states is (Idle, SendOriginal, WaitDMA, Mix);
 
     signal PS, NS: states; -- Present State and Next State, respectively.
     -- #############
@@ -145,8 +145,8 @@ begin
                 S_Rx_tReady <= '1'; 
                     if (S_Rx_tValid = '1' and playInterrupt = '0') then 
                            NS <= sendOriginal; 
-                    elsif ((S_Rx_tValid = '1') and (playInterrupt = '1') and (S_Rec_tValid = '1')) then 
-                           NS <= Mix; 
+                    elsif (playInterrupt = '1') then 
+                           NS <= WaitDMA; 
                     else 
                             NS <= PS; 
                     end if; 
@@ -154,6 +154,22 @@ begin
           when sendOriginal => 
                 M_dma_tValid <= '1';
                 NS <= Idle; 
+         
+         when WaitDMA => 
+            tDataLoad <= '1'; 
+            tRecLoad <= '1'; 
+            S_Rx_tReady <= '0'; 
+            
+            if ((S_Rx_tValid = '0' or S_Rec_tValid = '0') and playInterrupt = '1') then 
+                NS <= PS; 
+            elsif (playInterrupt = '0') then 
+                NS <= Idle;
+            elsif (S_Rx_tValid = '1' and S_Rec_tValid = '1') then
+                S_Rx_tReady <= '1';
+                NS <= Mix; 
+           else 
+                NS <= PS; 
+           end if; 
                 
          when Mix => -- when we are in the Mix state 
             mixAudio <= '1'; 

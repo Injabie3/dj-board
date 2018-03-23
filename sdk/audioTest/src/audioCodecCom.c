@@ -4,7 +4,9 @@
 #include <math.h>
 #include "xparameters.h"
 #include "xstatus.h"
+#include "xgpio.h" 					// GPIO drivers, PL side.
 #include "audioCodecCom.h"
+#include "xaxidma.h"
 #include "xil_printf.h"
 #include "luiMemoryLocations.h"
 #include "xil_exception.h"
@@ -12,14 +14,23 @@
 #include "luiHanning.h"
 #include "luiCircularBuffer.h"
 
+
+#define DEVICE_ID_PLAYBACKINTERRUPT		XPAR_AXI_GPIO_PLAY_INTERRUPT_DEVICE_ID
+
+
 volatile u64 *TxBufferPtr = (u64*)TX_BUFFER_BASE;
 volatile u64 *TxBufferWindowedPtr = (u64*)TX_BUFFER_WINDOWED_BASE;
 volatile u64 *MxBufferPtr = (u64*)MX_BUFFER_BASE;
 volatile u64 *RxBufferPtr = (u64*)RX_BUFFER_BASE;
 volatile u64 *Rx2BufferPtr = (u64*)RX_2_BUFFER_BASE;
 volatile u64 *RxShiftBufferPtr = (u64*)RX_SHIFT_BUFFER_BASE;
-volatile u32 *RecBufferPtr = (volatile u32*)REC_BUFFER_BASE;
 volatile u64 *Rx2ShiftBufferPtr = (u64*)RX_2_SHIFT_BUFFER_BASE;
+
+volatile u32 *RxToMixBufferPtr = (u32*)RX_TOMIX_BUFFER_BASE;
+volatile u32 *RxMixedBufferPtr = (u32*)RX_MIXED_BUFFER_BASE;
+volatile u32 *RecBufferPtr = (volatile u32*)REC_BUFFER_BASE;
+
+
 volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
 int* echoCounter = (int *) ECHO_CNTR_LOCATION;
 circular_buf_t circularBuffer;
@@ -27,7 +38,10 @@ int *maxRecordCounter = (int*) MAX_RECORD_COUNTER;
 int *recordCounter = (int*) RECORD_COUNTER;
 int *playBackCounter = (int*) PLAYBACK_COUNTER;
 
-
+static XGpio gpioPlaybackInterrupt;        // AXI GPIO object for play back interrupt
+XAxiDma axiDmaRecord; // DMA for the recorded data
+XAxiDma axiDmaRx; // DMA for the standard audio data
+//XAxiDma axiDmaFFT; // DMA for the FFT core
 // QUICK DEBUG SWITCHES
 //#define FFT_256_HANNING		// Apply 256pt hanning.
 #define FFT_512_HANNING	// Apply 512pt hanning
@@ -44,20 +58,27 @@ int *playBackCounter = (int*) PLAYBACK_COUNTER;
 //#define FFT_512_3_WIN 		// FFT 512pt 3. Window Overlap
 //#define FFT_512_4_WIN 		// FFT 512pt 4. Window Overlap
 //#define FFT_512_5_WIN 		// FFT 512pt 5. Window Overlap
-#define OVERLAY
+
 
 
 
 void audioDriver(){
 	int configStatus, status;
 	int bufferedSamples = 0;
-	// Instantiate the circular buffer.
+	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
 
+	// Instantiate the circular buffer.
 	circularBuffer.size = 48000*3;
 	circularBuffer.buffer = (uint32_t*) CIRCULAR_BUFFER_BASE;
 	circular_buf_reset(&circularBuffer);
 	circularBuffer.startingIndex = 24000;
 
+	//configure the GPIO to send the playback interrupt to hardware block
+	status = XGpio_Initialize(&gpioPlaybackInterrupt, DEVICE_ID_PLAYBACKINTERRUPT);
+	if (status != XST_SUCCESS) {
+		xil_printf("Error: GPIO Playback interrupt initialization failed!\r\n");
+		return XST_FAILURE;
+	}
 
 	// loop on audio
 	while (1) {
@@ -130,7 +151,7 @@ void audioDriver(){
 #endif // FFT_512_HANNING
 
 		configStatus = XGpio_FftConfig();
-		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, TxBufferWindowedPtr, MxBufferPtr);
+		status = XAxiDma_FFTDataTransfer(DEVICE_ID_DMA_FFT, TxBufferWindowedPtr, MxBufferPtr);
 
 		if (status != XST_SUCCESS) {
 			xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
@@ -144,7 +165,7 @@ void audioDriver(){
 
 		configStatus = XGpio_IFftConfig();
 #ifdef FFT_512_2_WIN_SUM
-		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, Rx2BufferPtr);
+		status = XAxiDma_FFTDataTransfer(DEVICE_ID_DMA_FFT, MxBufferPtr, Rx2BufferPtr);
 
 		if (status != XST_SUCCESS) {
 				xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
@@ -154,7 +175,13 @@ void audioDriver(){
 
 		// Sum bits
 		for (int index = 0; index < 256; index++) {
-			RxShiftBufferPtr[256+index] += Rx2ShiftBufferPtr[index];
+			s16 tempRight = (s16)(RxShiftBufferPtr[256+index] >> 32) + (s16)(Rx2ShiftBufferPtr[index] >> 32);
+			s16 tempLeft = (s16)(RxShiftBufferPtr[256+index]) + (s16)(Rx2ShiftBufferPtr[index]);
+
+			RxShiftBufferPtr[256+index] += Rx2ShiftBufferPtr[index]; // TODO sum each part seperately
+
+//			RxShiftBufferPtr[256+index] = ((u64)(tempRight) << 32) | (u64)tempLeft;
+			RxToMixBufferPtr[index] = ((RxShiftBufferPtr[256+index] & 0xFFFF) | ((RxShiftBufferPtr[256+index] >> 16) & 0xFFFF0000));
 		}
 #else
 		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, RxBufferPtr);
@@ -173,13 +200,35 @@ void audioDriver(){
 #endif // FFT_256_4_WIN
 
 #ifdef FFT_512_2_WIN_SUM
+
+
+		// need to take 64 bit data from Rx2BufferPtr and convert it to 32 bit before sending it to DMA
+
+		XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
+
+		status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RX, RxToMixBufferPtr, RxMixedBufferPtr, axiDmaRx, 1);
+
 		// Send last 256 samples
 		if (bufferedSamples <= 24000) {
-			dataOut(256, RxShiftBufferPtr, 256, true);	// For 512pt 2. Window Overlap, except with Dan's summing suggestion
+
+			// if interrupt is enabled
+			if (*psRightPushButtonEnabled){
+			// start DATA TRANSFER of recorded sample with DMA
+		     status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr, RxMixedBufferPtr, axiDmaRecord, 0);
+			 if ((*playBackCounter) < *recordCounter){
+				(*playBackCounter)++;
+			 	 }
+			 else {
+				 *playBackCounter = 0;
+				 *psRightPushButtonEnabled = 0;
+			 	 }
+			}
+
+			dataOut(256, RxMixedBufferPtr, 0, true);	// For 512pt 2. Window Overlap, except with Dan's summing suggestion
 			bufferedSamples += 256;
 		}
 		else {
-			dataOut(256, RxShiftBufferPtr, 256, false);	// For 512pt 2. Window Overlap, except with Dan's summing suggestion
+			dataOut(256, RxMixedBufferPtr, 0, false);	// For 512pt 2. Window Overlap, except with Dan's summing suggestion
 		}
 
 
@@ -249,83 +298,25 @@ void dataIn(int samplesToRead, volatile u64* toBuffer, int offset) {
 // samplesToSend:	The number of samples to send.
 // fromBuffer:		A pointer to the buffer containing the samples to send.
 // offset:			Start sending samples from the specified offset of the buffer above.
-void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset, bool circularBufferOnly) {
+void dataOut(int samplesToSend, volatile u32* fromBuffer, int offset, bool circularBufferOnly) {
 	int dataOut = 0;
 	u32 temp = 0;
-	int16_t tempLeft = 0;
-	int16_t tempRight = 0;
-	int16_t tempLeftRec = 0;
-	int16_t tempRightRec = 0;
 	int echoAmount = *echoCounter;
-	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
 
 	//now we want to check the DAC
 	while(dataOut < samplesToSend){
 		// if DAC FIFO is not FULL we can write data to it
-#ifndef OVERLAY
-		if ((AUDIOCHIP[0] & 1<<5)==0) {
-			if (*psRightPushButtonEnabled){
-
-			 if ((*playBackCounter) < *recordCounter){
-				AUDIOCHIP[1] = RecBufferPtr[*playBackCounter];
-				(*playBackCounter)++;
-			 }
-			 else {
-				 //*recordCounter = 0;
-				 *playBackCounter = 0;
-				 *psRightPushButtonEnabled = 0;
-			 }
-			}
-			else {
-				*psRightPushButtonEnabled = 0;
-				*playBackCounter = 0;
-			tempRight = fromBuffer[offset+dataOut]>>16;
-			tempLeft = fromBuffer[offset+dataOut];
-			temp = (tempRight & 0xFFFF0000)| (tempLeft & 0xFFFF);
-			if (!circularBufferOnly) {
-				if (echoAmount == 0)
-					circular_buf_get(&circularBuffer, &AUDIOCHIP[1]);
-				else
-					circular_buf_getSummedTaps(&circularBuffer, &AUDIOCHIP[1], echoAmount*120);
-			}
-			circular_buf_put(&circularBuffer, temp);
-
-			//AUDIOCHIP[1] = temp;
-
-		}
-#endif
-#ifdef OVERLAY
 		if ((AUDIOCHIP[0] & 1<<5)==0) {
 
-
-				tempRight = fromBuffer[offset+dataOut]>>32;
-				tempLeft = fromBuffer[offset+dataOut];
-				if (*psRightPushButtonEnabled){
-
-				 if ((*playBackCounter) < *recordCounter){
-					tempLeftRec = (RecBufferPtr[*playBackCounter]) & 0xFFFF;
-					tempRightRec = (RecBufferPtr[*playBackCounter])>>16;
-					(*playBackCounter)++;
-				 	 }
-				 else {
-					 //*recordCounter = 0;
-					 *playBackCounter = 0;
-					 *psRightPushButtonEnabled = 0;
-				 	 }
-				}
-
-				temp = ((tempRight+tempRightRec)<<16)| ((tempLeft+tempLeftRec) & 0xFFFF);
 				if (!circularBufferOnly) {
 					if (echoAmount == 0)
 						circular_buf_get(&circularBuffer, &AUDIOCHIP[1]);
 					else
 						circular_buf_getSummedTaps(&circularBuffer, &AUDIOCHIP[1], echoAmount*120);
 				}
-				circular_buf_put(&circularBuffer, temp);
+				circular_buf_put(&circularBuffer, fromBuffer[offset+dataOut]);
 
 				//AUDIOCHIP[1] = temp;
-
-#endif
 			dataOut++;
 		}
 	}
