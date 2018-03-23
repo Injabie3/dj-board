@@ -1,7 +1,7 @@
 --Copyright 1986-2017 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2017.3 (win64) Build 2018833 Wed Oct  4 19:58:22 MDT 2017
---Date        : Wed Mar 21 22:22:13 2018
+--Date        : Thu Mar 22 21:09:53 2018
 --Host        : Lui-Ryan-New running 64-bit major release  (build 9200)
 --Command     : generate_target audioTest_wrapper.bd
 --Design      : audioTest_wrapper
@@ -98,11 +98,11 @@ architecture STRUCTURE of audioTest_wrapper is
     LD0 : out STD_LOGIC;
     LD3 : out STD_LOGIC;
     LD2 : out STD_LOGIC;
-    VGA_B : out STD_LOGIC_VECTOR ( 3 downto 0 );
-    VGA_G : out STD_LOGIC_VECTOR ( 3 downto 0 );
-    VGA_R : out STD_LOGIC_VECTOR ( 3 downto 0 );
+    VGA_HSYNC : out STD_LOGIC;
     VGA_VSYNC : out STD_LOGIC;
-    VGA_HSYNC : out STD_LOGIC
+    VGA_R : out STD_LOGIC_VECTOR ( 3 downto 0 );
+    VGA_G : out STD_LOGIC_VECTOR ( 3 downto 0 );
+    VGA_B : out STD_LOGIC_VECTOR ( 3 downto 0 )
   );
   end component audioTest;
 begin
