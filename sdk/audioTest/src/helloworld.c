@@ -87,7 +87,7 @@ static XGpio gpioBeatDetector02;			// AXI GPIO object for beat detector 2.
 
 //XIntc interruptController; 				// AXI Interrupt Controller object.
 static XScuGic_Config *interruptControllerConfig;
-static XScuGic psInterruptController;
+static XScuGic * psInterruptController = (XScuGic *)PS_INTERRUPT_CONTROLLER;
 static XGpioPs gpioPSPushButtons; 			// PS GPIO object for the push buttons.
 static XGpioPs_Config *gpioPSPushButtonsConfig;
 static XScuTimer psTimer;					// PS Timer.
@@ -127,7 +127,8 @@ int main()
 {
 	int status;
     init_platform();
-
+    XScuGic test;
+    * psInterruptController = test;
     initializePeripherals();
 
     // Set up the beat detector to detect certain bins
@@ -139,22 +140,22 @@ int main()
 
     //setupInterruptSystemXIntc(&interruptController, &gpioSwitches, XPAR_INTC_0_GPIO_1_VEC_ID, gpioSwitchesInterruptHandler);
 	// Set up interrupt handler for switches.
-    setupInterruptSystemGpio(&psInterruptController, &gpioSwitches, XPAR_FABRIC_AXI_GPIO_SWITCHES_IP2INTC_IRPT_INTR, gpioSwitchesInterruptHandler);
+    setupInterruptSystemGpio(psInterruptController, &gpioSwitches, XPAR_FABRIC_AXI_GPIO_SWITCHES_IP2INTC_IRPT_INTR, gpioSwitchesInterruptHandler);
 
     // Set up interrupt handler for buttons.
-	setupInterruptSystemGpio(&psInterruptController, &gpioPushButtons, XPAR_FABRIC_AXI_GPIO_BUTTONS_IP2INTC_IRPT_INTR, gpioPushButtonsInterruptHandler);
+	setupInterruptSystemGpio(psInterruptController, &gpioPushButtons, XPAR_FABRIC_AXI_GPIO_BUTTONS_IP2INTC_IRPT_INTR, gpioPushButtonsInterruptHandler);
 
 	// Set up interrupt handler for PS buttons.
-	setupInterruptSystemGpioPs(&psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 50, gpioPushButtonsPSInterruptHandler);
-	setupInterruptSystemGpioPs(&psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 51, gpioPushButtonsPSInterruptHandler);
+	setupInterruptSystemGpioPs(psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 50, gpioPushButtonsPSInterruptHandler);
+	setupInterruptSystemGpioPs(psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 51, gpioPushButtonsPSInterruptHandler);
 
 	// Set up interrupt handler for PS Timer
-	setupInterruptSystemTimerPs(&psInterruptController, &psTimer, XPAR_SCUTIMER_INTR, timerInterruptHandler);
-	interruptSetTimer(&psTimer);
+//	setupInterruptSystemTimerPs(psInterruptController, &psTimer, XPAR_SCUTIMER_INTR, timerInterruptHandler);
+//	interruptSetTimer(&psTimer);
 	interruptSetGpioPsPushButtons(&gpioPSPushButtons);
 
 	// Enable the interrupts, and away we go!
-	registerInterruptHandler(&psInterruptController);
+	registerInterruptHandler(psInterruptController);
 	setUpInterruptCounters();
 
 	XScuTimer_LoadTimer(&psTimer, 5000);
@@ -198,7 +199,7 @@ int initializePeripherals() {
 		return XST_FAILURE;
 	}
 
-	status = XScuGic_CfgInitialize(&psInterruptController, interruptControllerConfig, interruptControllerConfig->CpuBaseAddress);
+	status = XScuGic_CfgInitialize(psInterruptController, interruptControllerConfig, interruptControllerConfig->CpuBaseAddress);
 	if (status != XST_SUCCESS) {
 		xil_printf("Error: Interrupt controller initialization failed!\r\n");
 		return XST_FAILURE;

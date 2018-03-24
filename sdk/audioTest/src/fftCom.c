@@ -148,7 +148,7 @@ int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u6
 
 
 u64 scalingSchedule256 = 0b0101010100000000;
-u64 scalingSchedule512 = 0b010101010000000000;
+u64 scalingSchedule512 = 0b010101010100000000;
 
 int XGpio_FftConfig() {
 

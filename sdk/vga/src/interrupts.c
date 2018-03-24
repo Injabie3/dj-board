@@ -1,30 +1,30 @@
 #include "interrupts.h"
 
-static XScuGic Intc;			/* Instance of the Interrupt Controller */
+static XScuGic* Intc = (XScuGic *)PS_INTERRUPT_CONTROLLER;		/* Instance of the Interrupt Controller */
 static bool isConfigured = FALSE;
 
 int InterruptInit(void)
 {
-	int Status;
+	int Status = SUCCESS;
 	XScuGic_Config *IntcConfig;
 
-	IntcConfig = XScuGic_LookupConfig(INTC_DEVICE_ID);
-	if (NULL == IntcConfig)
-	{
-		return FAILURE;
-	}
-
-	Status = XScuGic_CfgInitialize(&Intc, IntcConfig, IntcConfig->CpuBaseAddress);
-	if (Status != SUCCESS)
-	{
-		return FAILURE;
-	}
-
-	Xil_ExceptionInit();
+//	IntcConfig = XScuGic_LookupConfig(INTC_DEVICE_ID);
+//	if (NULL == IntcConfig)
+//	{
+//		return FAILURE;
+//	}
+//
+//	//Status = XScuGic_CfgInitialize(&Intc, IntcConfig, IntcConfig->CpuBaseAddress);
+//	if (Status != SUCCESS)
+//	{
+//		return FAILURE;
+//	}
+//
+//	Xil_ExceptionInit();
 	Xil_ExceptionRegisterHandler(XIL_EXCEPTION_ID_INT,
-			(Xil_ExceptionHandler) XScuGic_InterruptHandler, (void *) &Intc);
-
-	Xil_ExceptionEnable();
+			(Xil_ExceptionHandler) XScuGic_InterruptHandler, (void *) Intc);
+//
+//	Xil_ExceptionEnable();
 
 	isConfigured = TRUE;
 
@@ -49,16 +49,16 @@ int EnableInterrupts(void * DevicePtr, u16 IntrId, void (*callback)(void * data)
 		}
 	}
 
-	XScuGic_SetPriorityTriggerType(&Intc, IntrId, priority, 0x3); // Rising Edge
+	XScuGic_SetPriorityTriggerType(Intc, IntrId, priority, 0x3); // Rising Edge
 
-	Status = XScuGic_Connect(&Intc, IntrId, (Xil_InterruptHandler)callback, DevicePtr);
+	Status = XScuGic_Connect(Intc, IntrId, (Xil_InterruptHandler)callback, DevicePtr);
 
 	if (Status != SUCCESS)
 	{
 		return Status;
 	}
 
-	XScuGic_Enable(&Intc, IntrId);
+	XScuGic_Enable(Intc, IntrId);
 
 	return SUCCESS;
 }
