@@ -85,7 +85,6 @@ static XGpio gpioPushButtons; 				// AXI GPIO object for the push buttons
 static XGpio gpioBeatDetector01;			// AXI GPIO object for beat detector 1.
 static XGpio gpioBeatDetector02;			// AXI GPIO object for beat detector 2.
 
-
 //XIntc interruptController; 				// AXI Interrupt Controller object.
 static XScuGic_Config *interruptControllerConfig;
 static XScuGic psInterruptController;
@@ -146,8 +145,8 @@ int main()
 	setupInterruptSystemGpio(&psInterruptController, &gpioPushButtons, XPAR_FABRIC_AXI_GPIO_BUTTONS_IP2INTC_IRPT_INTR, gpioPushButtonsInterruptHandler);
 
 	// Set up interrupt handler for PS buttons.
-	setupInterruptSystemGpioPs(&psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 50, gpioPushButtonsPSInterruptHandler, XGPIOPS_IRQ_TYPE_EDGE_BOTH);
-	setupInterruptSystemGpioPs(&psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 51, gpioPushButtonsPSInterruptHandler, XGPIOPS_IRQ_TYPE_EDGE_RISING);
+	setupInterruptSystemGpioPs(&psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 50, gpioPushButtonsPSInterruptHandler);
+	setupInterruptSystemGpioPs(&psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 51, gpioPushButtonsPSInterruptHandler);
 
 	// Set up interrupt handler for PS Timer
 	setupInterruptSystemTimerPs(&psInterruptController, &psTimer, XPAR_SCUTIMER_INTR, timerInterruptHandler);
@@ -162,7 +161,6 @@ int main()
 	XScuTimer_Start(&psTimer);
 
     print("Hello World\n\r");
-
 
     // test data
 	/*TxBufferPtr[0] = 0x0000000000004000;

@@ -95,8 +95,9 @@ int setupInterruptSystemGpio(XScuGic* interruptController, XGpio* gpio, u32 inte
 // Returns:
 // - XST_SUCCESS, if the interrupt system was set up successfully!
 // - XST_FAILURE, if the interrupt system could not be set up.
-int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int interruptID, int pin, Xil_ExceptionHandler interruptHandler, int triggerType) {
+int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int interruptID, int pin, Xil_ExceptionHandler interruptHandler) {
 	int status;
+
 	// This enables the interrupts to be detected in the GPIO.  The mask tells it which interrupts to enable.
 	/* Set the handler for gpio interrupts. */
 	XGpioPs_SetCallbackHandler(gpio, (void *)gpio,(XGpioPs_Handler) interruptHandler);
@@ -104,8 +105,8 @@ int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int 
 	// Set pin to be input.
 	XGpioPs_SetOutputEnablePin(gpio, pin, 0x0);
 
-	// Enable the GPIO interrupt for the pin to be on rising edge for PS buttons
-	XGpioPs_SetIntrTypePin(gpio, pin, triggerType);
+	// Enable the GPIO interrupt for the pin to be on rising edge.
+	XGpioPs_SetIntrTypePin(gpio, pin, XGPIOPS_IRQ_TYPE_EDGE_BOTH);
 	XGpioPs_IntrEnablePin(gpio, pin);
 
 
@@ -387,43 +388,7 @@ void gpioPushButtonsPSInterruptHandler(void *CallbackRef) {
 	return;
 }
 
-//void gpioRightPushButtonPSInterruptHandler(void *CallbackRef) {
-//	XGpioPs* gpio = (XGpioPs*) CallbackRef;
-//	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
-//	u32 rightButton = XGpioPs_ReadPin(gpio, 51); // this button is for PLAYBACK
-//
-//	if (ignoreButtonPress == 0) {
-//		// b
-//
-//		if (rightButton == 1){
-//			*psRightPushButtonEnabled = 1;
-//		}
-//
-//		else {
-//#ifdef LUI_DEBUG
-//			print("PS Left Button released!\n\r");
-//#endif // LUI_DEBUG
-//			*psRightPushButtonEnabled = 0;
-//		}
-////		if (timerPointer) {
-////			ignoreButtonPress = 1;
-////			XScuTimer_LoadTimer(timerPointer, 0x1FFFFFF);
-////			XScuTimer_Start(timerPointer);
-////		}
-//	}
-//
-//#ifdef LUI_DEBUG
-//	print("Success! PS Push Button interrupts work!\r\n");
-//#endif // LUI_DEBUG
-//	// Clear the interrupt!
-//	// MIO 50 - Left button | MIO 51 - Right button
-//	XGpioPs_IntrClearPin(gpio, 51);
-//
-//	return;
-//}
-
 // This function is what will get called when the timer interrupt occurs.
-// TODO will need to add a second timer
 void timerInterruptHandler(void *CallbackRef) {
 	XScuTimer* timer = (XScuTimer *) CallbackRef;
 	if (ignoreButtonPress == 1) {

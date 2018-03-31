@@ -7,7 +7,7 @@
 
 static XGpio gpioFftConfig;					// AXI GPIO object for the FFT configuration.
 static XAxiDma axiDmaFFT;						// AXI DMA object that is tied with the FFT core.
-
+static XAxiDma axiDmaMix;						// AXI DMA object that is tied with the FFT core.
 //
 //#define FFT_256		// 256pt FFT bitstream.
 #define FFT_512	// 512pt FFT bitstream.
@@ -72,7 +72,7 @@ void shiftBitsRight(volatile u64* bufferToShift, volatile u64* bufferToStoreIn) 
 // - Populates DDR with a test vector.
 // - Does a data transfer to and from the FFT core via the DMA
 //   to perform a forward FFT.
-int XAxiDma_FFTDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u64* outputBuffer) {
+int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u64* outputBuffer) {
 
 
 	// making these pointers global for the purpose of using same FFT core for forward and inverse
@@ -143,7 +143,11 @@ int XAxiDma_FFTDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u6
 	return 0;
 }
 
-int XAxiDma_MixerDataTransfer(u16 DeviceId, volatile u32* inputBuffer, volatile u32* outputBuffer, XAxiDma axiDma, int8_t bothDirection){
+
+int XAxiDma_MixDataTransfer(u16 DeviceId, volatile u32* inputBuffer, volatile u32* outputBuffer){
+
+	// making these pointers global for the purpose of using same FFT core for forward and inverse
+
 
 	//****************** Configure the DMA ***********************************/
 	/********************Using Xilinx Sample code provided for simple polling example********************/
@@ -158,24 +162,23 @@ int XAxiDma_MixerDataTransfer(u16 DeviceId, volatile u32* inputBuffer, volatile 
 		return XST_FAILURE;
 	}
 
-	Status = XAxiDma_CfgInitialize(&axiDma, CfgPtr);
+	Status = XAxiDma_CfgInitialize(&axiDmaMix, CfgPtr);
 	if (Status != XST_SUCCESS) {
 		xil_printf("Initialization failed %d\r\n", Status);
 		return XST_FAILURE;
 	}
 
-	if(XAxiDma_HasSg(&axiDma)){
+	if(XAxiDma_HasSg(&axiDmaMix)){
 		xil_printf("Device configured as SG mode \r\n");
 		return XST_FAILURE;
 	}
 
 	/* Disable interrupts, we use polling mode
 	 */
-	XAxiDma_IntrDisable(&axiDma, XAXIDMA_IRQ_ALL_MASK,
+	XAxiDma_IntrDisable(&axiDmaMix, XAXIDMA_IRQ_ALL_MASK,
 						XAXIDMA_DEVICE_TO_DMA);
-
-	if (bothDirection == 1)
-		XAxiDma_IntrDisable(&axiDma, XAXIDMA_IRQ_ALL_MASK, XAXIDMA_DMA_TO_DEVICE);
+	XAxiDma_IntrDisable(&axiDmaMix, XAXIDMA_IRQ_ALL_MASK,
+						XAXIDMA_DMA_TO_DEVICE);
 
 	//Value = TEST_START_VALUE;
 
@@ -183,21 +186,19 @@ int XAxiDma_MixerDataTransfer(u16 DeviceId, volatile u32* inputBuffer, volatile 
 	// flush the cache
 	Xil_DCacheFlushRange((UINTPTR)inputBuffer, 0x400);
 	//#ifdef __aarch64__
-	if (bothDirection == 1)
-		Xil_DCacheFlushRange((UINTPTR)outputBuffer, 0x400);
+	Xil_DCacheFlushRange((UINTPTR)outputBuffer, 0x400);
 	//#endif
 
 	/**********************Start data transfer with FFT***************************/
 	//
-	if (bothDirection == 1){
-		Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) outputBuffer,
-					0x400, XAXIDMA_DEVICE_TO_DMA);
+	Status = XAxiDma_SimpleTransfer(&axiDmaMix,(UINTPTR) outputBuffer,
+			0x400, XAXIDMA_DEVICE_TO_DMA);
 
-		if (Status != XST_SUCCESS) {
-			return XST_FAILURE;
-		}
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
 	}
-	Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) inputBuffer,
+
+	Status = XAxiDma_SimpleTransfer(&axiDmaMix,(UINTPTR) inputBuffer,
 			0x400, XAXIDMA_DMA_TO_DEVICE);
 
 	if (Status != XST_SUCCESS) {
@@ -205,19 +206,13 @@ int XAxiDma_MixerDataTransfer(u16 DeviceId, volatile u32* inputBuffer, volatile 
 	}
 
 	// loop while DMA is busy
-	if (bothDirection == 1)
-		while ((XAxiDma_Busy(&axiDma,XAXIDMA_DEVICE_TO_DMA)) || (XAxiDma_Busy(&axiDma,XAXIDMA_DMA_TO_DEVICE))) {
-				/* Wait */
-		}
-	else
-		while (XAxiDma_Busy(&axiDma,XAXIDMA_DEVICE_TO_DMA)){
+	while ((XAxiDma_Busy(&axiDmaMix,XAXIDMA_DEVICE_TO_DMA)) ||
+		(XAxiDma_Busy(&axiDmaMix,XAXIDMA_DMA_TO_DEVICE))) {
 			/* Wait */
-		}
+	}
 
 	return 0;
 }
-
-
 // This function sets up the FFT core
 
 

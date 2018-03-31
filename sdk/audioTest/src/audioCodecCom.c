@@ -4,9 +4,7 @@
 #include <math.h>
 #include "xparameters.h"
 #include "xstatus.h"
-#include "xgpio.h" 					// GPIO drivers, PL side.
 #include "audioCodecCom.h"
-#include "xaxidma.h"
 #include "xil_printf.h"
 #include "luiMemoryLocations.h"
 #include "xil_exception.h"
@@ -14,21 +12,17 @@
 #include "luiHanning.h"
 #include "luiCircularBuffer.h"
 
-
-#define DEVICE_ID_PLAYBACKINTERRUPT		XPAR_AXI_GPIO_PLAY_INTERRUPT_DEVICE_ID
-
-
 volatile u64 *TxBufferPtr = (u64*)TX_BUFFER_BASE;
 volatile u64 *TxBufferWindowedPtr = (u64*)TX_BUFFER_WINDOWED_BASE;
 volatile u64 *MxBufferPtr = (u64*)MX_BUFFER_BASE;
 volatile u64 *RxBufferPtr = (u64*)RX_BUFFER_BASE;
 volatile u64 *Rx2BufferPtr = (u64*)RX_2_BUFFER_BASE;
 volatile u64 *RxShiftBufferPtr = (u64*)RX_SHIFT_BUFFER_BASE;
+volatile u32 *RecBufferPtr = (volatile u32*)REC_BUFFER_BASE;
 volatile u64 *Rx2ShiftBufferPtr = (u64*)RX_2_SHIFT_BUFFER_BASE;
 
 volatile u32 *RxToMixBufferPtr = (u32*)RX_TOMIX_BUFFER_BASE;
 volatile u32 *RxMixedBufferPtr = (u32*)RX_MIXED_BUFFER_BASE;
-volatile u32 *RecBufferPtr = (volatile u32*)REC_BUFFER_BASE;
 
 
 volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
@@ -38,10 +32,7 @@ int *maxRecordCounter = (int*) MAX_RECORD_COUNTER;
 int *recordCounter = (int*) RECORD_COUNTER;
 int *playBackCounter = (int*) PLAYBACK_COUNTER;
 
-static XGpio gpioPlaybackInterrupt;        // AXI GPIO object for play back interrupt
-XAxiDma axiDmaRecord; // DMA for the recorded data
-XAxiDma axiDmaRx; // DMA for the standard audio data
-//XAxiDma axiDmaFFT; // DMA for the FFT core
+
 // QUICK DEBUG SWITCHES
 //#define FFT_256_HANNING		// Apply 256pt hanning.
 #define FFT_512_HANNING	// Apply 512pt hanning
@@ -58,41 +49,23 @@ XAxiDma axiDmaRx; // DMA for the standard audio data
 //#define FFT_512_3_WIN 		// FFT 512pt 3. Window Overlap
 //#define FFT_512_4_WIN 		// FFT 512pt 4. Window Overlap
 //#define FFT_512_5_WIN 		// FFT 512pt 5. Window Overlap
-
+#define OVERLAY
 
 
 
 void audioDriver(){
 	int configStatus, status;
 	int bufferedSamples = 0;
-	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
-
 	// Instantiate the circular buffer.
+
 	circularBuffer.size = 48000*3;
 	circularBuffer.buffer = (uint32_t*) CIRCULAR_BUFFER_BASE;
 	circular_buf_reset(&circularBuffer);
 	circularBuffer.startingIndex = 24000;
 
-	//configure the GPIO to send the playback interrupt to hardware block
-	status = XGpio_Initialize(&gpioPlaybackInterrupt, DEVICE_ID_PLAYBACKINTERRUPT);
-	if (status != XST_SUCCESS) {
-		xil_printf("Error: GPIO Playback interrupt initialization failed!\r\n");
-		return XST_FAILURE;
-	}
 
 	// loop on audio
 	while (1) {
-
-
-//		for (int index = 0; index < 96; index++) { // For 128pt 3. Window Overlap
-//			TxBufferPtr[index] = TxBufferPtr[32+index];
-//		}
-
-#ifdef FFT_256_4_WIN
-		for (int index = 0; index < 224; index++) { // For 256pt 4. Window Overlap
-			TxBufferPtr[index] = TxBufferPtr[32+index];
-		}
-#endif // FFT_256_4_WIN
 
 #ifdef FFT_512_2_WIN_SUM
 		// Shift 256 samples over before reading 256 in the next iteration.
@@ -101,42 +74,14 @@ void audioDriver(){
 		}
 #endif // FFT_512_2_WIN_SUM
 
-#ifdef FFT_512_4_WIN
-		// Shift 448 samples over before reading 64 in the next iteration.
-		for (int index = 0; index < 448; index++) { // For 512pt 4. Window Overlap
-			TxBufferPtr[index] = TxBufferPtr[64+index];
-		}
-#endif // FFT_512_4_WIN
-
 		// read in audio data from ADC FIFO
 
-#ifdef FFT_256_4_WIN
-		dataIn(32, TxBufferPtr, 224);		// For 256pt 4. Window Overlap.
-#endif // #ifdef FFT_256_4_WIN
 
 #ifdef FFT_512_2_WIN_SUM
 		// Get 256 samples per iteration.
 		dataIn(256, TxBufferPtr, 256);		// For 512pt 2. Window Overlap, except using Dan's summing suggestion.
 #endif // FFT_512_2_WIN_SUM
 
-#ifdef FFT_512_4_WIN
-		// Get 64 samples per iteration.
-		dataIn(64, TxBufferPtr, 448);		// For 512pt 2. Window Overlap.
-#endif // FFT_512_4_WIN
-
-		// Apply Hanning Window Overlap.
-		// 0x0000RRRR0000LLLL
-#ifdef FFT_256_HANNING
-		for (int index = 0; index < 256; index++) {		// For 256pt FFT
-			u64 temp = TxBufferPtr[index];
-			s16 tempLeft = (s16)temp;
-			s16 tempRight = (s16)(temp >> 32);
-			tempRight = (float)tempRight * hanning256[index];
-			tempLeft = (float)tempLeft * hanning256[index];
-			temp = (((u64)tempRight) << 32) | ((u64) tempLeft & 0xFFFF);
-			TxBufferWindowedPtr[index] = temp;
-		}
-#endif // FFT_256_HANNING
 
 #ifdef FFT_512_HANNING
 		for (int index = 0; index < 512; index++) {		// For 512pt FFT
@@ -151,7 +96,7 @@ void audioDriver(){
 #endif // FFT_512_HANNING
 
 		configStatus = XGpio_FftConfig();
-		status = XAxiDma_FFTDataTransfer(DEVICE_ID_DMA_FFT, TxBufferWindowedPtr, MxBufferPtr);
+		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, TxBufferWindowedPtr, MxBufferPtr);
 
 		if (status != XST_SUCCESS) {
 			xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
@@ -165,7 +110,8 @@ void audioDriver(){
 
 		configStatus = XGpio_IFftConfig();
 #ifdef FFT_512_2_WIN_SUM
-		status = XAxiDma_FFTDataTransfer(DEVICE_ID_DMA_FFT, MxBufferPtr, Rx2BufferPtr);
+		// perform IFFT
+		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, Rx2BufferPtr);
 
 		if (status != XST_SUCCESS) {
 				xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
@@ -173,62 +119,28 @@ void audioDriver(){
 		//need to convert output because it is shifted by 3 bits
 		shiftBits(Rx2BufferPtr, Rx2ShiftBufferPtr);
 
+		//sendToMixer(Rx2ShiftBufferPtr, RxMixedBufferPtr);
+
 		// Sum bits
 		for (int index = 0; index < 256; index++) {
-			s16 tempRight = (s16)(RxShiftBufferPtr[256+index] >> 32) + (s16)(Rx2ShiftBufferPtr[index] >> 32);
-			s16 tempLeft = (s16)(RxShiftBufferPtr[256+index]) + (s16)(Rx2ShiftBufferPtr[index]);
-
-			RxShiftBufferPtr[256+index] += Rx2ShiftBufferPtr[index]; // TODO sum each part seperately
-
-//			RxShiftBufferPtr[256+index] = ((u64)(tempRight) << 32) | (u64)tempLeft;
-			RxToMixBufferPtr[index] = ((RxShiftBufferPtr[256+index] & 0xFFFF) | ((RxShiftBufferPtr[256+index] >> 16) & 0xFFFF0000));
+			RxShiftBufferPtr[256+index] += Rx2ShiftBufferPtr[index];
+			//RxShiftBufferPtr[256+index] = 0x0;
 		}
-#else
-		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, RxBufferPtr);
-
-		if (status != XST_SUCCESS) {
-				xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
-			}
-		//need to convert output because it is shifted by 3 bits
-		shiftBits(RxBufferPtr, RxShiftBufferPtr);
 #endif // FFT_512_2_WIN_SUM
 //		dataOut(32, RxShiftBufferPtr, 32);	// For 128pt 3. Window Overlap.
 
-#ifdef FFT_256_4_WIN
-		// Send middle 32 samples
-		dataOut(32, RxShiftBufferPtr, 112);	// For 512pt 4. Window Overlap.
-#endif // FFT_256_4_WIN
+		sendToMixer(RxShiftBufferPtr, RxMixedBufferPtr);
 
 #ifdef FFT_512_2_WIN_SUM
-
-
-		// need to take 64 bit data from Rx2BufferPtr and convert it to 32 bit before sending it to DMA
-
-		XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
-
-		status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RX, RxToMixBufferPtr, RxMixedBufferPtr, axiDmaRx, 1);
-
 		// Send last 256 samples
 		if (bufferedSamples <= 24000) {
-
-			// if interrupt is enabled
-			if (*psRightPushButtonEnabled){
-			// start DATA TRANSFER of recorded sample with DMA
-		     status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr, RxMixedBufferPtr, axiDmaRecord, 0);
-			 if ((*playBackCounter) < *recordCounter){
-				(*playBackCounter)++;
-			 	 }
-			 else {
-				 *playBackCounter = 0;
-				 *psRightPushButtonEnabled = 0;
-			 	 }
-			}
-
-			dataOut(256, RxMixedBufferPtr, 0, true);	// For 512pt 2. Window Overlap, except with Dan's summing suggestion
-			bufferedSamples += 256;
+			//dataOut(256, RxShiftBufferPtr, 256, true);	// For 512pt 2. Window Overlap, except with Dan's summing suggestion
+			dataOut(255, RxMixedBufferPtr, 0, true);
+			bufferedSamples += 255;
 		}
 		else {
-			dataOut(256, RxMixedBufferPtr, 0, false);	// For 512pt 2. Window Overlap, except with Dan's summing suggestion
+			dataOut(255, RxMixedBufferPtr, 0, false);
+			//dataOut(256, RxShiftBufferPtr, 256, false);	// For 512pt 2. Window Overlap, except with Dan's summing suggestion
 		}
 
 
@@ -238,12 +150,23 @@ void audioDriver(){
 		}
 #endif // FFT_512_2_WIN_SUM
 
-#ifdef FFT_512_4_WIN
-		// Send middle 64 samples
-		dataOut(64, RxShiftBufferPtr, 224);	// For 512pt 3. Window Overlap.
-#endif // FFT_512_4_WIN
 
 	}
+}
+
+void sendToMixer(volatile u64* toSendBuffer, volatile u32* recieveBuffer){
+	// here we will receive a 64 bit buffer and need to get rid of the extra stuff
+	//u32 temp = 0;
+	int16_t tempLeft = 0;
+	int16_t tempRight = 0;
+
+	for (int i=256; i<512; i++){
+		tempRight = toSendBuffer[i]>>32;
+		tempLeft = toSendBuffer[i];
+		RxToMixBufferPtr[i-256] = ((tempRight << 16) | (tempLeft & 0xFFFF));
+	}
+	// send data to HW block through DMA and get it back
+	int status = XAxiDma_MixDataTransfer(DEVICE_ID_DMA_MIX, RxToMixBufferPtr, recieveBuffer);
 }
 
 
@@ -301,12 +224,39 @@ void dataIn(int samplesToRead, volatile u64* toBuffer, int offset) {
 void dataOut(int samplesToSend, volatile u32* fromBuffer, int offset, bool circularBufferOnly) {
 	int dataOut = 0;
 	u32 temp = 0;
+//	int16_t tempLeft = 0;
+//	int16_t tempRight = 0;
+//	int16_t tempLeftRec = 0;
+//	int16_t tempRightRec = 0;
 	int echoAmount = *echoCounter;
+	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
 
 	//now we want to check the DAC
-	while(dataOut < samplesToSend){
+	while(dataOut < (samplesToSend-1)){
 		// if DAC FIFO is not FULL we can write data to it
+
 		if ((AUDIOCHIP[0] & 1<<5)==0) {
+
+
+//				tempRight = fromBuffer[offset+dataOut]>>32;
+//				tempLeft = fromBuffer[offset+dataOut];
+//				if (*psRightPushButtonEnabled){
+//
+//				 if ((*playBackCounter) < *recordCounter){
+//					tempLeftRec = (RecBufferPtr[*playBackCounter]) & 0xFFFF;
+//					tempRightRec = (RecBufferPtr[*playBackCounter])>>16;
+//					(*playBackCounter)++;
+//				 	 }
+//				 else {
+//					 //*recordCounter = 0;
+//					 *playBackCounter = 0;
+//					 *psRightPushButtonEnabled = 0;
+//				 	 }
+//				}
+
+//				temp = ((tempRight+tempRightRec)<<16)| ((tempLeft+tempLeftRec) & 0xFFFF);
+				temp = fromBuffer[dataOut];
+				// prett sure i can't call this with temp
 
 				if (!circularBufferOnly) {
 					if (echoAmount == 0)
@@ -314,7 +264,7 @@ void dataOut(int samplesToSend, volatile u32* fromBuffer, int offset, bool circu
 					else
 						circular_buf_getSummedTaps(&circularBuffer, &AUDIOCHIP[1], echoAmount*120);
 				}
-				circular_buf_put(&circularBuffer, fromBuffer[offset+dataOut]);
+				circular_buf_put(&circularBuffer, temp);
 
 				//AUDIOCHIP[1] = temp;
 			dataOut++;
@@ -407,13 +357,13 @@ void equalize(){
 	//2 - amplify MID frequency sounds
 	//3 - amplify HIGH frequency sounds
 	u16* equalizePart = (u16*) EQUAL_SEC_LOCATION;
-	int* equalizeCounter = (int*) EQUAL_CNTR_LOCATION;
+//	int* equalizeCounter = (int*) EQUAL_CNTR_LOCATION;
 	if (*equalizePart!= 0){
 		// want to amplify LOW frequency sounds
 		if (*equalizePart == 1){
 			// for 512 point FFT we define
 			// low frequencies in bins 1 to 85
-			for (int i=427;i<512;i++) {
+			for (int i=0;i<5;i++) {
 				rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
 				rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
 				lChImag = (MxBufferPtr[i] & 0xFFFF0000) >> 16;
@@ -429,14 +379,19 @@ void equalize(){
 
 
 				// now need to increase magnitude by counter amount
-				if (*equalizeCounter > 0){
-					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
-					rChMag *= (*equalizeCounter);
-				}
-				else if (*equalizeCounter < 0){
-					lChMag /= (-1)*(*equalizeCounter);
-					rChMag /= (-1)*(*equalizeCounter);
-				}
+//				if (*equalizeCounter > 0){
+//					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
+//					rChMag *= (*equalizeCounter);
+//				}
+//				else if (*equalizeCounter < 0){
+//					lChMag /= (-1)*(*equalizeCounter);
+//					rChMag /= (-1)*(*equalizeCounter);
+//				}
+
+//------------------------Equalizing will no longer be user manipulated - can only be "on" or "off" --------------------------------//
+
+				lChMag /= 10;
+				rChMag /= 10;
 				//now need to convert back to real/imaginary
 				lChReal = lChMag *cos(lChPhase);
 				lChImag = lChMag *sin(lChPhase);
@@ -461,14 +416,18 @@ void equalize(){
 
 				// now need to increase magnitude by counter amount
 				// now need to increase magnitude by counter amount
-				if (*equalizeCounter > 0){
-					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
-					rChMag *= (*equalizeCounter);
-				}
-				else if (*equalizeCounter < 0){
-					lChMag /= (-1)*(*equalizeCounter);
-					rChMag /= (-1)*(*equalizeCounter);
-				}
+//				if (*equalizeCounter > 0){
+//					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
+//					rChMag *= (*equalizeCounter);
+//				}
+//				else if (*equalizeCounter < 0){
+//					lChMag /= (-1)*(*equalizeCounter);
+//					rChMag /= (-1)*(*equalizeCounter);
+//				}
+//------------------------Equalizing will no longer be user manipulated - can only be "on" or "off" --------------------------------//
+
+				lChMag /= 10;
+				rChMag /= 10;
 				//now need to convert back to real/imaginary
 				lChReal = lChMag * cos(lChPhase);
 				lChImag = lChMag * sin(lChPhase);
@@ -482,7 +441,7 @@ void equalize(){
 		}
 		// want to amplify MID frequency sounds
 		else if(*equalizePart == 2){
-			for (int i=85;i<171;i++) {
+			for (int i=5;i<80;i++) {
 				rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
 				rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
 				lChImag = (MxBufferPtr[i] & 0xFFFF0000) >> 16;
@@ -497,15 +456,20 @@ void equalize(){
 				rChPhase = atan((double)rChImag/(double)rChReal);
 
 
-				// now need to increase magnitude by counter amount
-				if (*equalizeCounter > 0){
-					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
-					rChMag *= (*equalizeCounter);
-				}
-				else if (*equalizeCounter < 0){
-					lChMag /= (-1)*(*equalizeCounter);
-					rChMag /= (-1)*(*equalizeCounter);
-				}
+//				// now need to increase magnitude by counter amount
+//				if (*equalizeCounter > 0){
+//					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
+//					rChMag *= (*equalizeCounter);
+//				}
+//				else if (*equalizeCounter < 0){
+//					lChMag /= (-1)*(*equalizeCounter);
+//					rChMag /= (-1)*(*equalizeCounter);
+//				}
+//------------------------Equalizing will no longer be user manipulated - can only be "on" or "off" --------------------------------//
+
+
+				lChMag /= 10;
+				rChMag /= 10;
 				//now need to convert back to real/imaginary
 				lChReal = lChMag *cos(lChPhase);
 				lChImag = lChMag *sin(lChPhase);
@@ -530,14 +494,17 @@ void equalize(){
 
 				// now need to increase magnitude by counter amount
 				// now need to increase magnitude by counter amount
-				if (*equalizeCounter > 0){
-					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
-					rChMag *= (*equalizeCounter);
-				}
-				else if (*equalizeCounter < 0){
-					lChMag /= (-1)*(*equalizeCounter);
-					rChMag /= (-1)*(*equalizeCounter);
-				}
+//				if (*equalizeCounter > 0){
+//					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
+//					rChMag *= (*equalizeCounter);
+//				}
+//				else if (*equalizeCounter < 0){
+//					lChMag /= (-1)*(*equalizeCounter);
+//					rChMag /= (-1)*(*equalizeCounter);
+//				}
+
+				lChMag /= 10;
+				rChMag /= 10;
 				//now need to convert back to real/imaginary
 				lChReal = lChMag * cos(lChPhase);
 				lChImag = lChMag * sin(lChPhase);
@@ -552,7 +519,7 @@ void equalize(){
 		}
 		// want to amplify HIGH frequency sounds
 		else if (*equalizePart == 3){
-			for (int i=128;i<256;i++) {
+			for (int i=40;i<90;i++) {
 				rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
 				rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
 				lChImag = (MxBufferPtr[i] & 0xFFFF0000) >> 16;
@@ -567,15 +534,20 @@ void equalize(){
 				rChPhase = atan((double)rChImag/(double)rChReal);
 
 
-				// now need to increase magnitude by counter amount
-				if (*equalizeCounter > 0){
-					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
-					rChMag *= (*equalizeCounter);
-				}
-				else if (*equalizeCounter < 0){
-					lChMag /= (-1)*(*equalizeCounter);
-					rChMag /= (-1)*(*equalizeCounter);
-				}
+//				// now need to increase magnitude by counter amount
+//				if (*equalizeCounter > 0){
+//					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
+//					rChMag *= (*equalizeCounter);
+//				}
+//				else if (*equalizeCounter < 0){
+//					lChMag /= (-1)*(*equalizeCounter);
+//					rChMag /= (-1)*(*equalizeCounter);
+//				}
+//------------------------Equalizing will no longer be user manipulated - can only be "on" or "off" --------------------------------//
+
+
+				lChMag *= 10;
+				rChMag *= 10;
 				//now need to convert back to real/imaginary
 				lChReal = lChMag *cos(lChPhase);
 				lChImag = lChMag *sin(lChPhase);
@@ -600,14 +572,20 @@ void equalize(){
 
 				// now need to increase magnitude by counter amount
 				// now need to increase magnitude by counter amount
-				if (*equalizeCounter > 0){
-					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
-					rChMag *= (*equalizeCounter);
-				}
-				else if (*equalizeCounter < 0){
-					lChMag /= (-1)*(*equalizeCounter);
-					rChMag /= (-1)*(*equalizeCounter);
-				}
+				//				// now need to increase magnitude by counter amount
+				//				if (*equalizeCounter > 0){
+				//					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
+				//					rChMag *= (*equalizeCounter);
+				//				}
+				//				else if (*equalizeCounter < 0){
+				//					lChMag /= (-1)*(*equalizeCounter);
+				//					rChMag /= (-1)*(*equalizeCounter);
+				//				}
+//------------------------Equalizing will no longer be user manipulated - can only be "on" or "off" --------------------------------//
+
+
+				lChMag *= 10;
+				rChMag *= 10;
 				//now need to convert back to real/imaginary
 				lChReal = lChMag * cos(lChPhase);
 				lChImag = lChMag * sin(lChPhase);

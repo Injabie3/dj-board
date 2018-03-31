@@ -43,7 +43,7 @@ int setupInterruptSystemGpio(XScuGic* interruptController, XGpio* gpio, int inte
 // Returns:
 // - XST_SUCCESS, if the interrupt system was set up successfully!
 // - XST_FAILURE, if the interrupt system could not be set up.
-int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int interruptID, int pin, Xil_ExceptionHandler interruptHandler, int triggerType);
+int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int interruptID, int pin, Xil_ExceptionHandler interruptHandler);
 
 // This sets up the interrupt controller that is on the PS for the timer supplied (for timer on the PS).
 // Parameters:
@@ -70,11 +70,8 @@ void gpioSwitchesInterruptHandler(void *CallbackRef);
 // This function is what will get called when an interrupt occurs from the 5 push buttons on the PL side.
 void gpioPushButtonsInterruptHandler(void *CallbackRef);
 
-// This function is what will get called when an interrupt occurs from the left push button on the PS side.
+// This function is what will get called when an interrupt occurs from the 2 push buttons on the PS side.
 void gpioPushButtonsPSInterruptHandler(void *CallbackRef);
-
-// This function is what will get called when an interrupt occurs from the right push button on the PS side.
-//void gpioRightPushButtonPSInterruptHandler(void *CallbackRef);
 
 // This function is what will get called when the timer interrupt occurs.
 void timerInterruptHandler(void *CallbackRef);
