@@ -23,4 +23,6 @@ void shiftBitsRight(volatile u64* bufferToShift, volatile u64* bufferToStoreIn);
 //   to perform a forward FFT.
 int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u64* outputBuffer);
 
+int XAxiDma_MixDataTransfer(u16 DeviceId, volatile u32* inputBuffer, volatile u32* outputBuffer);
+
 #endif

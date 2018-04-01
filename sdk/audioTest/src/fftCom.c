@@ -7,6 +7,7 @@
 
 static XGpio gpioFftConfig;					// AXI GPIO object for the FFT configuration.
 static XAxiDma axiDma;						// AXI DMA object that is tied with the FFT core.
+static XAxiDma axiDmaMix;						// AXI DMA object that is tied with the FFT core.
 
 //
 //#define FFT_256		// 256pt FFT bitstream.
@@ -143,7 +144,75 @@ int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u6
 	return 0;
 }
 
+int XAxiDma_MixDataTransfer(u16 DeviceId, volatile u32* inputBuffer, volatile u32* outputBuffer){
 
+	// making these pointers global for the purpose of using same FFT core for forward and inverse
+
+
+	//****************** Configure the DMA ***********************************/
+	/********************Using Xilinx Sample code provided for simple polling example********************/
+	XAxiDma_Config *CfgPtr;
+	int Status;
+	//int Tries = NUMBER_OF_TRANSFERS;
+	/* Initialize the XAxiDma device.
+	 */
+	CfgPtr = XAxiDma_LookupConfig(DeviceId);
+	if (!CfgPtr) {
+		xil_printf("No config found for %d\r\n", DeviceId);
+		return XST_FAILURE;
+	}
+
+	Status = XAxiDma_CfgInitialize(&axiDmaMix, CfgPtr);
+	if (Status != XST_SUCCESS) {
+		xil_printf("Initialization failed %d\r\n", Status);
+		return XST_FAILURE;
+	}
+
+	if(XAxiDma_HasSg(&axiDmaMix)){
+		xil_printf("Device configured as SG mode \r\n");
+		return XST_FAILURE;
+	}
+
+	/* Disable interrupts, we use polling mode
+	 */
+	XAxiDma_IntrDisable(&axiDmaMix, XAXIDMA_IRQ_ALL_MASK,
+						XAXIDMA_DEVICE_TO_DMA);
+	XAxiDma_IntrDisable(&axiDmaMix, XAXIDMA_IRQ_ALL_MASK,
+						XAXIDMA_DMA_TO_DEVICE);
+
+	//Value = TEST_START_VALUE;
+
+
+	// flush the cache
+	Xil_DCacheFlushRange((UINTPTR)inputBuffer, 0x400);
+	//#ifdef __aarch64__
+	Xil_DCacheFlushRange((UINTPTR)outputBuffer, 0x400);
+	//#endif
+
+	/**********************Start data transfer with FFT***************************/
+	//
+	Status = XAxiDma_SimpleTransfer(&axiDmaMix,(UINTPTR) outputBuffer,
+			0x400, XAXIDMA_DEVICE_TO_DMA);
+
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+	Status = XAxiDma_SimpleTransfer(&axiDmaMix,(UINTPTR) inputBuffer,
+			0x400, XAXIDMA_DMA_TO_DEVICE);
+
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+	// loop while DMA is busy
+	while ((XAxiDma_Busy(&axiDmaMix,XAXIDMA_DEVICE_TO_DMA)) ||
+		(XAxiDma_Busy(&axiDmaMix,XAXIDMA_DMA_TO_DEVICE))) {
+			/* Wait */
+	}
+
+	return 0;
+}
 // This function sets up the FFT core
 
 
