@@ -150,16 +150,16 @@ int main()
 	setupInterruptSystemGpioPs(psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 51, gpioPushButtonsPSInterruptHandler);
 
 	// Set up interrupt handler for PS Timer
-//	setupInterruptSystemTimerPs(psInterruptController, &psTimer, XPAR_SCUTIMER_INTR, timerInterruptHandler);
-//	interruptSetTimer(&psTimer);
+	setupInterruptSystemTimerPs(psInterruptController, &psTimer, XPAR_SCUTIMER_INTR, timerInterruptHandler);
+	interruptSetTimer(&psTimer);
 	interruptSetGpioPsPushButtons(&gpioPSPushButtons);
 
 	// Enable the interrupts, and away we go!
 	registerInterruptHandler(psInterruptController);
 	setUpInterruptCounters();
 
-	XScuTimer_LoadTimer(&psTimer, 5000);
-	XScuTimer_Start(&psTimer);
+	//XScuTimer_LoadTimer(&psTimer, 5000);
+	//XScuTimer_Start(&psTimer);
 
     print("Hello World from CPU 0\n\r");
 

@@ -10,19 +10,22 @@ C_SRCS += \
 ../src/axi_vga.c \
 ../src/helloworld.c \
 ../src/interrupts.c \
-../src/platform.c 
+../src/platform.c \
+../src/video.c 
 
 OBJS += \
 ./src/axi_vga.o \
 ./src/helloworld.o \
 ./src/interrupts.o \
-./src/platform.o 
+./src/platform.o \
+./src/video.o 
 
 C_DEPS += \
 ./src/axi_vga.d \
 ./src/helloworld.d \
 ./src/interrupts.d \
-./src/platform.d 
+./src/platform.d \
+./src/video.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

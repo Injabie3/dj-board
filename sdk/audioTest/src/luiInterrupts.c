@@ -216,12 +216,21 @@ void gpioSwitchesInterruptHandler(void *CallbackRef) {
 	// Disable equalize first
 	*equalizeVal = 0; // initialize to 0
 
+	// Echo - Check if Switch 4 is up.
 	int switchNum = 0;
 	if ((switches & (1 << 4)) != 0) {
 		*switchUpEcho = 1;
 	}
 	else {
 		*switchUpEcho = 0;
+	}
+
+	// Pitch - Check if Switch 3 is up.
+	if ((switches & (1 << 3)) != 0) {
+		*switchUpPitch = 1;
+	}
+	else {
+		*switchUpPitch = 0;
 	}
 
 	while(switchVar != 0) {
@@ -309,14 +318,17 @@ void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 		// Only adjust echo if SW4 is up.
 		if ((*switchUpEcho) == 1) {
 			// Do not let *echoCounter go less than 0
+			// DOWN button pressed.
 			if ((buttonStatus & (1<<1)) != 0x0 && (*echoCounter) > 0) {
 				(*echoCounter)--;
 			}
-			// this tells us that the UP button is pressed
-			if ((buttonStatus & (1<<4)) != 0x0){
+			// Do not let *echoCounter go more than 40.
+			// UP button pressed.
+			if ((buttonStatus & (1<<4)) != 0x0 && (*echoCounter) <= 40){
 				(*echoCounter)++;
 			}
-			// this tells us that the CTR button is pressed
+			// Reset to 0.
+			// CTR button pressed.
 			if ((buttonStatus & (1<<0)) != 0x0) {
 				*echoCounter = 0;
 			}

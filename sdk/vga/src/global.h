@@ -32,7 +32,19 @@
  *
  *******************************/
 // Splash screen
-#define SPLASH_SCREEN				(CONTENT_BASE_ADDR) //0x0210 0000
+#define SPLASH_SCREEN				(CONTENT_BASE_ADDR) 				// 0x0210 0000, size (bytes): 614404
+
+// Text
+#define VGA_TEXT_ECHO				(SPLASH_SCREEN + 614404) 			// 0x0219 6004, size (bytes): 5884
+#define VGA_TEXT_PITCH				(VGA_TEXT_ECHO + 5884) 				// 0x0219 7700, size (bytes): 5764
+#define VGA_TEXT_EQUALIZER			(VGA_TEXT_PITCH + 5764)				// 0x0219 8D84, size (bytes): 14724
+#define VGA_TEXT_ON					(VGA_TEXT_EQUALIZER + 14724)		// 0x0219 C708, size (bytes): 3724, 184px x 40px
+#define VGA_TEXT_OFF				(VGA_TEXT_ON + 3724)				// 0x0219 D594, size (bytes): 3724
+#define VGA_TEXT_HIGH				(VGA_TEXT_OFF + 3724)				// 0x0219 E420, size (bytes): 7044
+#define VGA_TEXT_MID				(VGA_TEXT_HIGH + 7044)				// 0x0219 FFA4, size (bytes): 4084
+#define VGA_TEXT_LOW				(VGA_TEXT_MID + 4084) 				// 0x021A 0F98, size (bytes): 4804
+
+
 
 // Main Menu
 #define MAIN_MENU_BACKGROUND		(SPLASH_SCREEN + 614404) 			// size(bytes): 614404

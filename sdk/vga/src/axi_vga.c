@@ -112,9 +112,9 @@ int DMAConfig(void)
 
 void FrameInit(void)
 {
-	//Xil_DCacheFlushRange((UINTPTR)Frame1, FRAME_LEN);
-	//Xil_DCacheFlushRange((UINTPTR)Frame2, FRAME_LEN);
-	//memset(Frame1, 0, FRAME_LEN);
+	Xil_DCacheFlushRange((UINTPTR)Frame1, FRAME_LEN);
+	Xil_DCacheFlushRange((UINTPTR)Frame2, FRAME_LEN);
+	memset(Frame1, 0, FRAME_LEN);
 	memset(Frame2, 0, FRAME_LEN);
 
 	FramePtr = Frame1;

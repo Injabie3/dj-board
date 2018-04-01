@@ -297,12 +297,11 @@ void dataOut(int samplesToSend, volatile u64* fromBuffer, int offset, bool circu
 #ifdef OVERLAY
 		if ((AUDIOCHIP[0] & 1<<5)==0) {
 
-
 				tempRight = fromBuffer[offset+dataOut]>>32;
 				tempLeft = fromBuffer[offset+dataOut];
 				if (*psRightPushButtonEnabled){
 
-				 if ((*playBackCounter) < *recordCounter){
+				 if ((*playBackCounter) < (*recordCounter)){
 					tempLeftRec = (RecBufferPtr[*playBackCounter]) & 0xFFFF;
 					tempRightRec = (RecBufferPtr[*playBackCounter])>>16;
 					(*playBackCounter)++;
@@ -346,6 +345,7 @@ void adjustPitch() {
 #ifdef MIRROR_FFT
 			// for positive data shift to the RIGHT
 			// for negative data shift to the LEFT
+			// Original
 			for (int i=0; i<255 - pitchVal;i++){
 				MxBufferPtr[256-i] = MxBufferPtr[256-(i+pitchVal+1)];
 			}
@@ -358,6 +358,17 @@ void adjustPitch() {
 			for (int j=0; j<pitchVal;j++) {
 				MxBufferPtr[511-j]=0;
 			}
+
+			// Experimental - Not working.
+//			for (int i=128; i>=0; i--){
+//				MxBufferPtr[2*i] = MxBufferPtr[i];
+//				MxBufferPtr[511-2*i] = MxBufferPtr[511-i];
+//			}
+//			for (int i=0; i<128; i++) {
+//				MxBufferPtr[1+2*i] = 0;
+//				MxBufferPtr[511-1-2*i] = 0;
+//
+//			}
 
 #endif
 
@@ -377,6 +388,7 @@ void adjustPitch() {
 		else{
 			int pitchValPositive = -pitchVal;
 #ifdef MIRROR_FFT
+// Original
 			for (int i=0; i<255 - pitchValPositive;i++){
 				MxBufferPtr[i] = MxBufferPtr[i+pitchValPositive];
 				MxBufferPtr[511-i] = MxBufferPtr[511-(i+pitchValPositive)];
@@ -386,6 +398,16 @@ void adjustPitch() {
 				MxBufferPtr[255-j] = 0;
 				MxBufferPtr[256+j] = 0;
 			}
+
+// Experimental - not working.
+//			for (int i=8; i>=0; i--){
+//				MxBufferPtr[255-240-2*i] = MxBufferPtr[255-i];
+//				MxBufferPtr[256+240+2*i] = MxBufferPtr[256+i];
+//			}
+//			for (int i=0; i<8; i++) {
+//				//MxBufferPtr[255-240-1-2*i] = 0;
+//				//MxBufferPtr[256+240+1+2*i] = 0;
+//			}
 #endif
 
 #ifndef MIRROR_FFT
