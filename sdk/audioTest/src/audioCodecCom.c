@@ -4,13 +4,18 @@
 #include <math.h>
 #include "xparameters.h"
 #include "xstatus.h"
+#include "xgpio.h" 					// GPIO drivers, PL side.
 #include "audioCodecCom.h"
+#include "xaxidma.h"
 #include "xil_printf.h"
 #include "luiMemoryLocations.h"
 #include "xil_exception.h"
 #include "fftCom.h"
 #include "luiHanning.h"
 #include "luiCircularBuffer.h"
+
+
+#define DEVICE_ID_PLAYBACKINTERRUPT		XPAR_AXI_GPIO_PLAY_INTERRUPT_DEVICE_ID
 
 volatile u64 *TxBufferPtr = (u64*)TX_BUFFER_BASE;
 volatile u64 *TxBufferWindowedPtr = (u64*)TX_BUFFER_WINDOWED_BASE;
@@ -32,6 +37,9 @@ int *maxRecordCounter = (int*) MAX_RECORD_COUNTER;
 int *recordCounter = (int*) RECORD_COUNTER;
 int *playBackCounter = (int*) PLAYBACK_COUNTER;
 
+static XGpio gpioPlaybackInterrupt;        // AXI GPIO object for play back interrupt
+XAxiDma axiDmaRecord; // DMA for the recorded data
+XAxiDma axiDmaRx; // DMA for the standard audio data
 
 // QUICK DEBUG SWITCHES
 //#define FFT_256_HANNING		// Apply 256pt hanning.
@@ -47,6 +55,8 @@ int *playBackCounter = (int*) PLAYBACK_COUNTER;
 void audioDriver(){
 	int configStatus, status;
 	int bufferedSamples = 0;
+
+	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
 	// Instantiate the circular buffer.
 
 	circularBuffer.size = 48000*3;
@@ -54,6 +64,12 @@ void audioDriver(){
 	circular_buf_reset(&circularBuffer);
 	circularBuffer.startingIndex = 24000;
 
+	//configure the GPIO to send the playback interrupt to hardware block
+	status = XGpio_Initialize(&gpioPlaybackInterrupt, DEVICE_ID_PLAYBACKINTERRUPT);
+	if (status != XST_SUCCESS) {
+		xil_printf("Error: GPIO Playback interrupt initialization failed!\r\n");
+		return XST_FAILURE;
+	}
 
 	// loop on audio
 	while (1) {
@@ -82,7 +98,7 @@ void audioDriver(){
 		}
 
 		configStatus = XGpio_FftConfig();
-		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, TxBufferWindowedPtr, MxBufferPtr);
+		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA_FFT, TxBufferWindowedPtr, MxBufferPtr);
 
 		if (status != XST_SUCCESS) {
 			xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
@@ -95,7 +111,7 @@ void audioDriver(){
 		// want to convert data back so we send it through IFFT
 
 		configStatus = XGpio_IFftConfig();
-		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA, MxBufferPtr, Rx2BufferPtr);
+		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA_FFT, MxBufferPtr, Rx2BufferPtr);
 
 		if (status != XST_SUCCESS) {
 				xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
@@ -105,7 +121,27 @@ void audioDriver(){
 
 		// Sum bits
 		for (int index = 0; index < 256; index++) {
-			RxShiftBufferPtr[256+index] += Rx2ShiftBufferPtr[index];
+			s16 tempRight = (s16)(RxShiftBufferPtr[256+index] >> 32) + (s16)(Rx2ShiftBufferPtr[index] >> 32);
+			s16 tempLeft = (s16)(RxShiftBufferPtr[256+index]) + (s16)(Rx2ShiftBufferPtr[index]);
+
+			RxShiftBufferPtr[256+index] += Rx2ShiftBufferPtr[index]; // TODO sum each part seperately
+
+			//RxShiftBufferPtr[256+index] = ((u64)(tempRight) << 32) | (u64)tempLeft;
+//			RxToMixBufferPtr[index] = ((RxShiftBufferPtr[256+index] & 0xFFFF) | ((RxShiftBufferPtr[256+index] >> 16) & 0xFFFF0000));
+		}
+
+		XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
+		// if interrupt is enabled
+		if (*psRightPushButtonEnabled){
+		// start DATA TRANSFER of recorded sample with DMA
+	     status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
+		 if ((*playBackCounter) < *recordCounter){
+			(*playBackCounter)+=256;
+		 	 }
+		 else {
+			 *playBackCounter = 0;
+			 *psRightPushButtonEnabled = 0;
+		 	 }
 		}
 
 		sendToMixer(RxShiftBufferPtr, RxMixedBufferPtr);
@@ -141,7 +177,7 @@ void sendToMixer(volatile u64* toSendBuffer, volatile u32* recieveBuffer){
 		RxToMixBufferPtr[i-256] = ((tempRight << 16) | (tempLeft & 0xFFFF));
 	}
 	// send data to HW block through DMA and get it back
-	int status = XAxiDma_MixDataTransfer(DEVICE_ID_DMA_MIX, RxToMixBufferPtr, recieveBuffer);
+	int status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_MIX, RxToMixBufferPtr, recieveBuffer, axiDmaRx, 1);
 }
 
 // Receives data from line in.

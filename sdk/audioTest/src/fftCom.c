@@ -144,74 +144,79 @@ int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u6
 	return 0;
 }
 
-int XAxiDma_MixDataTransfer(u16 DeviceId, volatile u32* inputBuffer, volatile u32* outputBuffer){
-
-	// making these pointers global for the purpose of using same FFT core for forward and inverse
-
+int XAxiDma_MixerDataTransfer(u16 DeviceId, volatile u32* inputBuffer, volatile u32* outputBuffer, XAxiDma axiDma, int8_t bothDirection){
 
 	//****************** Configure the DMA ***********************************/
-	/********************Using Xilinx Sample code provided for simple polling example********************/
-	XAxiDma_Config *CfgPtr;
-	int Status;
-	//int Tries = NUMBER_OF_TRANSFERS;
-	/* Initialize the XAxiDma device.
-	 */
-	CfgPtr = XAxiDma_LookupConfig(DeviceId);
-	if (!CfgPtr) {
-		xil_printf("No config found for %d\r\n", DeviceId);
-		return XST_FAILURE;
-	}
+		/********************Using Xilinx Sample code provided for simple polling example********************/
+		XAxiDma_Config *CfgPtr;
+		int Status;
+		//int Tries = NUMBER_OF_TRANSFERS;
+		/* Initialize the XAxiDma device.
+		 */
+		CfgPtr = XAxiDma_LookupConfig(DeviceId);
+		if (!CfgPtr) {
+			xil_printf("No config found for %d\r\n", DeviceId);
+			return XST_FAILURE;
+		}
 
-	Status = XAxiDma_CfgInitialize(&axiDmaMix, CfgPtr);
-	if (Status != XST_SUCCESS) {
-		xil_printf("Initialization failed %d\r\n", Status);
-		return XST_FAILURE;
-	}
+		Status = XAxiDma_CfgInitialize(&axiDma, CfgPtr);
+		if (Status != XST_SUCCESS) {
+			xil_printf("Initialization failed %d\r\n", Status);
+			return XST_FAILURE;
+		}
 
-	if(XAxiDma_HasSg(&axiDmaMix)){
-		xil_printf("Device configured as SG mode \r\n");
-		return XST_FAILURE;
-	}
+		if(XAxiDma_HasSg(&axiDma)){
+			xil_printf("Device configured as SG mode \r\n");
+			return XST_FAILURE;
+		}
 
-	/* Disable interrupts, we use polling mode
-	 */
-	XAxiDma_IntrDisable(&axiDmaMix, XAXIDMA_IRQ_ALL_MASK,
-						XAXIDMA_DEVICE_TO_DMA);
-	XAxiDma_IntrDisable(&axiDmaMix, XAXIDMA_IRQ_ALL_MASK,
-						XAXIDMA_DMA_TO_DEVICE);
+		/* Disable interrupts, we use polling mode
+		 */
+		XAxiDma_IntrDisable(&axiDma, XAXIDMA_IRQ_ALL_MASK,
+							XAXIDMA_DEVICE_TO_DMA);
 
-	//Value = TEST_START_VALUE;
+		if (bothDirection == 1)
+			XAxiDma_IntrDisable(&axiDma, XAXIDMA_IRQ_ALL_MASK, XAXIDMA_DMA_TO_DEVICE);
+
+		//Value = TEST_START_VALUE;
 
 
-	// flush the cache
-	Xil_DCacheFlushRange((UINTPTR)inputBuffer, 0x400);
-	//#ifdef __aarch64__
-	Xil_DCacheFlushRange((UINTPTR)outputBuffer, 0x400);
-	//#endif
+		// flush the cache
+		Xil_DCacheFlushRange((UINTPTR)inputBuffer, 0x400);
+		//#ifdef __aarch64__
+		if (bothDirection == 1)
+			Xil_DCacheFlushRange((UINTPTR)outputBuffer, 0x400);
+		//#endif
 
-	/**********************Start data transfer with FFT***************************/
-	//
-	Status = XAxiDma_SimpleTransfer(&axiDmaMix,(UINTPTR) outputBuffer,
-			0x400, XAXIDMA_DEVICE_TO_DMA);
+		/**********************Start data transfer with FFT***************************/
+		//
+		if (bothDirection == 1){
+			Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) outputBuffer,
+						0x400, XAXIDMA_DEVICE_TO_DMA);
 
-	if (Status != XST_SUCCESS) {
-		return XST_FAILURE;
-	}
+			if (Status != XST_SUCCESS) {
+				return XST_FAILURE;
+			}
+		}
+		Status = XAxiDma_SimpleTransfer(&axiDma,(UINTPTR) inputBuffer,
+				0x400, XAXIDMA_DMA_TO_DEVICE);
 
-	Status = XAxiDma_SimpleTransfer(&axiDmaMix,(UINTPTR) inputBuffer,
-			0x400, XAXIDMA_DMA_TO_DEVICE);
+		if (Status != XST_SUCCESS) {
+			return XST_FAILURE;
+		}
 
-	if (Status != XST_SUCCESS) {
-		return XST_FAILURE;
-	}
+		// loop while DMA is busy
+		if (bothDirection == 1){
+			while (XAxiDma_Busy(&axiDma,XAXIDMA_DEVICE_TO_DMA)){
+				/* Wait */
+			}
+			while (XAxiDma_Busy(&axiDma,XAXIDMA_DMA_TO_DEVICE)) {
+					/* Wait */
+			}
+		}
 
-	// loop while DMA is busy
-	while ((XAxiDma_Busy(&axiDmaMix,XAXIDMA_DEVICE_TO_DMA)) ||
-		(XAxiDma_Busy(&axiDmaMix,XAXIDMA_DMA_TO_DEVICE))) {
-			/* Wait */
-	}
 
-	return 0;
+		return 0;
 }
 // This function sets up the FFT core
 

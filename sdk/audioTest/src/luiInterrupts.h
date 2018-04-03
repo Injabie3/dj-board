@@ -43,7 +43,7 @@ int setupInterruptSystemGpio(XScuGic* interruptController, XGpio* gpio, int inte
 // Returns:
 // - XST_SUCCESS, if the interrupt system was set up successfully!
 // - XST_FAILURE, if the interrupt system could not be set up.
-int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int interruptID, int pin, Xil_ExceptionHandler interruptHandler);
+int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int interruptID, int pin, Xil_ExceptionHandler interruptHandler, int triggerType);
 
 // This sets up the interrupt controller that is on the PS for the timer supplied (for timer on the PS).
 // Parameters:

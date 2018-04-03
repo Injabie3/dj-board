@@ -95,7 +95,7 @@ int setupInterruptSystemGpio(XScuGic* interruptController, XGpio* gpio, u32 inte
 // Returns:
 // - XST_SUCCESS, if the interrupt system was set up successfully!
 // - XST_FAILURE, if the interrupt system could not be set up.
-int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int interruptID, int pin, Xil_ExceptionHandler interruptHandler) {
+int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int interruptID, int pin, Xil_ExceptionHandler interruptHandler, int triggerType) {
 	int status;
 
 	// This enables the interrupts to be detected in the GPIO.  The mask tells it which interrupts to enable.
@@ -106,7 +106,7 @@ int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int 
 	XGpioPs_SetOutputEnablePin(gpio, pin, 0x0);
 
 	// Enable the GPIO interrupt for the pin to be on rising edge.
-	XGpioPs_SetIntrTypePin(gpio, pin, XGPIOPS_IRQ_TYPE_EDGE_BOTH);
+	XGpioPs_SetIntrTypePin(gpio, pin, triggerType);
 	XGpioPs_IntrEnablePin(gpio, pin);
 
 

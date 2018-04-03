@@ -146,8 +146,8 @@ int main()
 	setupInterruptSystemGpio(psInterruptController, &gpioPushButtons, XPAR_FABRIC_AXI_GPIO_BUTTONS_IP2INTC_IRPT_INTR, gpioPushButtonsInterruptHandler);
 
 	// Set up interrupt handler for PS buttons.
-	setupInterruptSystemGpioPs(psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 50, gpioPushButtonsPSInterruptHandler);
-	setupInterruptSystemGpioPs(psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 51, gpioPushButtonsPSInterruptHandler);
+	setupInterruptSystemGpioPs(psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 50, gpioPushButtonsPSInterruptHandler, XGPIOPS_IRQ_TYPE_EDGE_BOTH);
+	setupInterruptSystemGpioPs(psInterruptController, &gpioPSPushButtons, XPAR_XGPIOPS_0_INTR, 51, gpioPushButtonsPSInterruptHandler, XGPIOPS_IRQ_TYPE_EDGE_RISING);
 
 	// Set up interrupt handler for PS Timer
 	setupInterruptSystemTimerPs(psInterruptController, &psTimer, XPAR_SCUTIMER_INTR, timerInterruptHandler);
