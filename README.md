@@ -112,7 +112,7 @@ The following two push buttons depend on the settings on switches 7 to 5.
 | Use/record recorded sound 1 (loopback)        | Up        | Down      | Down      |  
 | Use/record recorded sound 2 (no loopback)     | Down      | Up        | Up        |  
 | Use/record recorded sound 2 (loopback)        | Up        | Up        | Up        |  
-| Use stored sound 1 (Another One)              | Down      | Down      | Up        |  
+| Use stored sound 1 (Another One)              | Down      | Up        | Down      |  
 | Use stored sound 1 (Airhorn)                  | Down      | Down      | Up        |  
 
 ## Acknowledgements

@@ -76,7 +76,8 @@
 #define DEVICE_ID_DMA					XPAR_AXIDMA_0_DEVICE_ID
 #define DEVICE_ID_TIMER					XPAR_PS7_SCUTIMER_0_DEVICE_ID
 
-
+//#define BEAT_DETECTION_SPEAKERS
+#define BEAT_DETECTION_HEADPHONES
 //#define INTERRUPTCONTROLLER_ADDRESS		XPAR_AXI_INTC_0_BASEADDR
 
 static XGpio gpioMiddleC; 					// AXI GPIO object for the middle C note.
@@ -100,26 +101,6 @@ int switches;
 // Initialize GPIO peripherals and the PS interrupt controller
 int initializePeripherals();
 
-// This function does the following:
-// - Initializes the DMA.
-// - Populates DDR with a test vector.
-// - Does a data transfer to and from the FFT core via the DMA
-//   to perform a forward FFT.
-int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* TxBuf, volatile u64* RxBuf);
-
-//mirrors image
-int XAxiDma_IFftDataTransfer(u16 DeviceId);
-
-// This function sets up the FFT core with forward FFT.
-int XGpio_FftConfig();
-
-// This function configures the FFT core with inverse FFT
-//To get back the original data
-int XGpio_IFftConfig();
-
-//This function is to shift the IFFT output back
-void shiftBits(volatile u64* RxBuf);
-
 // This function is a loop to test the audio with GPIO switches.
 void audioLoop();
 
@@ -131,12 +112,22 @@ int main()
     * psInterruptController = test;
     initializePeripherals();
 
+#ifdef BEAT_DETECTION_SPEAKERS
     // Set up the beat detector to detect certain bins
-    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x80000); // 2^18
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x80000); // 2^19
     XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0xA); // Valid and bin 20.
 
-    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x800000); // 2^18
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x800000); // 2^19
     XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x0); // Valid and bin 20.
+#endif // BEAT_DETECTION_SPEAKERS
+#ifdef BEAT_DETECTION_HEADPHONES
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x4000); // 2^16
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0xA); // Valid and bin 20.
+
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x40000); // 2^18
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x0); // Valid and bin 20.
+
+#endif // BEAT_DETECTION_HEADPHONES
 
     //setupInterruptSystemXIntc(&interruptController, &gpioSwitches, XPAR_INTC_0_GPIO_1_VEC_ID, gpioSwitchesInterruptHandler);
 	// Set up interrupt handler for switches.

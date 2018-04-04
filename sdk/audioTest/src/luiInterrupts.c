@@ -39,6 +39,9 @@ int* maxRecordCounter;
 int* playBackCounter;
 int* switchUpEcho = (int*) SWITCH_UP_ECHO;
 int* switchUpPitch = (int*) SWITCH_UP_PITCH;
+int* switchUpStoredSound1 = (int*) STORED_SOUND_1_ENABLED;
+int* switchUpStoredSound2 = (int*) STORED_SOUND_2_ENABLED;
+int* switchUpLoopback = (int*) LOOPBACK_ENABLED;
 u32* psLeftPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_LEFT;
 u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
 
@@ -211,18 +214,22 @@ void gpioSwitchesInterruptHandler(void *CallbackRef) {
 	XGpio *gpioPointer = (XGpio *) CallbackRef;
 	u16* equalizeVal = (u16*) EQUAL_SEC_LOCATION;	// What we're going to be equalizing
 	int switches = XGpio_DiscreteRead(gpioPointer, 1);
-	int switchVar = switches;
 
-	// Disable equalize first
-	*equalizeVal = 0; // initialize to 0
-
-	// Echo - Check if Switch 4 is up.
-	int switchNum = 0;
-	if ((switches & (1 << 4)) != 0) {
-		*switchUpEcho = 1;
+	// Equalizer - Check Switch 0, 1, 2.
+	if ((switches & (1 << 2)) != 0) {
+		// Manipulate HIGH frequency
+		*equalizeVal = 3;
 	}
-	else {
-		*switchUpEcho = 0;
+	else if ((switches & (1 << 1)) != 0) {
+		// Manipulate MID frequency
+		*equalizeVal = 2;
+	}
+	else if ((switches & (1 << 0)) != 0) {
+		// Manipulate LOW frequency
+		*equalizeVal = 1;
+	}
+	else { // Equalize switches down, do nothing
+		*equalizeVal = 0;
 	}
 
 	// Pitch - Check if Switch 3 is up.
@@ -233,23 +240,41 @@ void gpioSwitchesInterruptHandler(void *CallbackRef) {
 		*switchUpPitch = 0;
 	}
 
-	while(switchVar != 0) {
-		if ((0x1 & switchVar) == 1) {
-			xil_printf("Switch %d is up!\n\r", switchNum);
-			if (switchNum == 0){
-				*equalizeVal = 1; // this means we want to amplify LOW frequency sounds
-			}
-			else if (switchNum == 1){
-				*equalizeVal = 2; // this means we want to amplify MID frequency sounds
-
-			}
-			else if (switchNum == 2) {
-				*equalizeVal = 3; //this means we want to amplify HIGH frequency sounds
-			}
-		}
-		switchNum++;
-		switchVar >>= 1;
+	// Echo - Check if Switch 4 is up.
+	if ((switches & (1 << 4)) != 0) {
+		*switchUpEcho = 1;
 	}
+	else {
+		*switchUpEcho = 0;
+	}
+
+	// Stored Sound 1 - Check if Switch 5 is up.
+	// DJ KHALED ANOTHER ONE
+	if ((switches & (1 << 5)) != 0) {
+		*switchUpStoredSound1 = 1;
+	}
+	else {
+		*switchUpStoredSound1 = 0;
+	}
+
+	// Stored Sound 2 - Check if Switch 6 is up.
+	// Airhorn sound
+	if ((switches & (1 << 6)) != 0) {
+		*switchUpStoredSound2 = 1;
+	}
+	else {
+		*switchUpStoredSound2 = 0;
+	}
+
+	// Loopback - Check if Switch 7 is up.
+	if ((switches & (1 << 7)) != 0) {
+		*switchUpLoopback = 1;
+	}
+	else {
+		*switchUpLoopback = 0;
+	}
+
+
 
 	// Clear the interrupt!!
 	XGpio_InterruptClear(gpioPointer, 1);

@@ -11,3 +11,5 @@ dow -data VGA_TEXT_OFF.bin       0x0219D594
 dow -data VGA_TEXT_HIGH.bin      0x0219E420
 dow -data VGA_TEXT_MID.bin       0x0219FFA4
 dow -data VGA_TEXT_LOW.bin       0x021A0F98
+dow -data anotherOne.bin         0x00504000
+dow -data airhorn.bin            0x00530000

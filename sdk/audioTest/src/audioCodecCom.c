@@ -37,9 +37,10 @@ int *maxRecordCounter = (int*) MAX_RECORD_COUNTER;
 int *recordCounter = (int*) RECORD_COUNTER;
 int *playBackCounter = (int*) PLAYBACK_COUNTER;
 
-static XGpio gpioPlaybackInterrupt;        // AXI GPIO object for play back interrupt
+static XGpio gpioPlaybackInterrupt; // AXI GPIO object for play back interrupt
 XAxiDma axiDmaRecord; // DMA for the recorded data
 XAxiDma axiDmaRx; // DMA for the standard audio data
+XAxiDma axiDmaStore;
 
 // QUICK DEBUG SWITCHES
 //#define FFT_256_HANNING		// Apply 256pt hanning.
@@ -56,6 +57,10 @@ void audioDriver(){
 	int configStatus, status;
 	int bufferedSamples = 0;
 
+	int* switchUpStoredSound1 = (int*) STORED_SOUND_1_ENABLED;
+	int* switchUpStoredSound2 = (int*) STORED_SOUND_2_ENABLED;
+	int* switchUpLoopback = (int*) LOOPBACK_ENABLED;
+
 	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
 	// Instantiate the circular buffer.
 
@@ -66,10 +71,14 @@ void audioDriver(){
 
 	//configure the GPIO to send the playback interrupt to hardware block
 	status = XGpio_Initialize(&gpioPlaybackInterrupt, DEVICE_ID_PLAYBACKINTERRUPT);
+
 	if (status != XST_SUCCESS) {
 		xil_printf("Error: GPIO Playback interrupt initialization failed!\r\n");
 		return XST_FAILURE;
 	}
+
+	 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, 0);
+	 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, 0);
 
 	// loop on audio
 	while (1) {
@@ -121,8 +130,8 @@ void audioDriver(){
 
 		// Sum bits
 		for (int index = 0; index < 256; index++) {
-			s16 tempRight = (s16)(RxShiftBufferPtr[256+index] >> 32) + (s16)(Rx2ShiftBufferPtr[index] >> 32);
-			s16 tempLeft = (s16)(RxShiftBufferPtr[256+index]) + (s16)(Rx2ShiftBufferPtr[index]);
+			//s16 tempRight = (s16)(RxShiftBufferPtr[256+index] >> 32) + (s16)(Rx2ShiftBufferPtr[index] >> 32);
+			//s16 tempLeft = (s16)(RxShiftBufferPtr[256+index]) + (s16)(Rx2ShiftBufferPtr[index]);
 
 			RxShiftBufferPtr[256+index] += Rx2ShiftBufferPtr[index]; // TODO sum each part seperately
 
@@ -130,18 +139,73 @@ void audioDriver(){
 //			RxToMixBufferPtr[index] = ((RxShiftBufferPtr[256+index] & 0xFFFF) | ((RxShiftBufferPtr[256+index] >> 16) & 0xFFFF0000));
 		}
 
-		XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
 		// if interrupt is enabled
 		if (*psRightPushButtonEnabled){
 		// start DATA TRANSFER of recorded sample with DMA
-	     status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
-		 if ((*playBackCounter) < *recordCounter){
-			(*playBackCounter)+=256;
-		 	 }
-		 else {
-			 *playBackCounter = 0;
-			 *psRightPushButtonEnabled = 0;
-		 	 }
+
+			// drive both interrupts to 0 so ivana's hardware block doesn't die
+			 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, 0);
+			 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, 0);
+//////////----------TO PLAY ANOTHER ONE ----------------------///////////
+			if (*switchUpStoredSound1 == 1){
+				 if ((*playBackCounter) < (STORED_SOUND_ANOTHER_ONE_LENGTH)){
+					 // send recordPlayback interrupt
+					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, *psRightPushButtonEnabled);
+					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_STORED, (u32*)STORED_SOUND_ANOTHER_ONE+(*playBackCounter), RxMixedBufferPtr, axiDmaStore, 0);
+					(*playBackCounter)+=256;
+				 }
+				 else {
+					 *playBackCounter = 0;
+					 *psRightPushButtonEnabled = 0;
+					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, *psRightPushButtonEnabled);
+					 }
+
+			}
+
+
+			else if (*switchUpStoredSound2 == 1){
+				 if ((*playBackCounter) < (STORED_SOUND_AIRHORN_LENGTH)){
+					 // send recordPlayback interrupt
+					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, *psRightPushButtonEnabled);
+					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_STORED, (u32*)STORED_SOUND_AIRHORN+(*playBackCounter), RxMixedBufferPtr, axiDmaStore, 0);
+					(*playBackCounter)+=256;
+				 }
+				 else {
+					 *playBackCounter = 0;
+					 *psRightPushButtonEnabled = 0;
+					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, *psRightPushButtonEnabled);
+					 }
+			}
+
+
+
+			else if (*switchUpLoopback == 1){
+				 if ((*playBackCounter) < ((*recordCounter)-256)){
+					 // send recordPlayback interrupt
+					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
+					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
+					(*playBackCounter)+=256;
+				 }
+				 else {
+					 *playBackCounter = 0;
+					 //*psRightPushButtonEnabled = 1;
+					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, 0);
+					 }
+
+			}
+			else {
+				 if ((*playBackCounter) < ((*recordCounter)-256)){
+					 // send recordPlayback interrupt
+					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
+					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
+					(*playBackCounter)+=256;
+				 }
+				 else {
+					 *playBackCounter = 0;
+					 *psRightPushButtonEnabled = 0;
+					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
+					 }
+			}
 		}
 
 		sendToMixer(RxShiftBufferPtr, RxMixedBufferPtr);

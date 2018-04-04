@@ -3,6 +3,7 @@
 
 #include "xparameters.h"
 #include "xil_exception.h"
+#include "../../../audioTest/src/luiMemoryLocations.h"
 #include "xdebug.h"
 #include "string.h"
 #include "sleep.h"
@@ -22,9 +23,6 @@
 
 #define IMG_HEADER_LEN			(4)
 #define CONTENT_BASE_ADDR		(DDR_BASE_ADDR + 0x2000000)
-
-#define LUI_DDR_BASE_ADDR				(XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x700000)
-#define PS_INTERRUPT_CONTROLLER			(LUI_DDR_BASE_ADDR + 0x30)
 
 /********************************
  *
