@@ -70,6 +70,8 @@
 #define DEVICE_ID_PUSHBUTTONS			XPAR_AXI_GPIO_BUTTONS_DEVICE_ID
 #define DEVICE_ID_BEATDETECTOR01		XPAR_AXI_GPIO_BEATDETECTOR01_CONFIG_DEVICE_ID
 #define DEVICE_ID_BEATDETECTOR02		XPAR_AXI_GPIO_BEATDETECTOR02_CONFIG_DEVICE_ID
+#define DEVICE_ID_BEATDETECTOR03		XPAR_AXI_GPIO_BEATDETECTOR03_CONFIG_DEVICE_ID
+#define DEVICE_ID_BEATDETECTOR04		XPAR_AXI_GPIO_BEATDETECTOR04_CONFIG_DEVICE_ID
 #define DEVICE_ID_PS_PUSHBUTTONS		XPAR_XGPIOPS_0_DEVICE_ID
 #define DEVICE_ID_FFT_GPIO				XPAR_AXI_GPIO_FFT_CONFIG_DEVICE_ID
 #define DEVICE_ID_INTERRUPTCONTROLLER	XPAR_INTC_0_DEVICE_ID
@@ -85,6 +87,8 @@ static XGpio gpioSwitches;					// AXI GPIO object for the switches
 static XGpio gpioPushButtons; 				// AXI GPIO object for the push buttons
 static XGpio gpioBeatDetector01;			// AXI GPIO object for beat detector 1.
 static XGpio gpioBeatDetector02;			// AXI GPIO object for beat detector 2.
+static XGpio gpioBeatDetector03;			// AXI GPIO object for beat detector 3.
+static XGpio gpioBeatDetector04;			// AXI GPIO object for beat detector 4.
 
 //XIntc interruptController; 				// AXI Interrupt Controller object.
 static XScuGic_Config *interruptControllerConfig;
@@ -115,17 +119,29 @@ int main()
 #ifdef BEAT_DETECTION_SPEAKERS
     // Set up the beat detector to detect certain bins
     XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x80000); // 2^19
-    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0xA); // Valid and bin 20.
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0x0); // Valid and bin 20.
 
     XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x800000); // 2^19
-    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x0); // Valid and bin 20.
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x5); // Valid and bin 20.
+
+    XGpio_DiscreteWrite(&gpioBeatDetector03, 1, 0x800000); // 2^19
+	XGpio_DiscreteWrite(&gpioBeatDetector03, 2, 0b1000000000 | 0xA); // Valid and bin 20.
+
+	XGpio_DiscreteWrite(&gpioBeatDetector04, 1, 0x800000); // 2^19
+	XGpio_DiscreteWrite(&gpioBeatDetector04, 2, 0b1000000000 | 0xE); // Valid and bin 20.
 #endif // BEAT_DETECTION_SPEAKERS
 #ifdef BEAT_DETECTION_HEADPHONES
-    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x4000); // 2^16
-    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0xA); // Valid and bin 20.
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x8000); // 2^16
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0x1); // Valid and bin 20.
 
-    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x40000); // 2^18
-    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x0); // Valid and bin 20.
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x8000); // 2^18
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x6); // Valid and bin 20.
+
+    XGpio_DiscreteWrite(&gpioBeatDetector03, 1, 0x8000); // 2^19
+	XGpio_DiscreteWrite(&gpioBeatDetector03, 2, 0b1000000000 | 0xC); // Valid and bin 20.
+
+	XGpio_DiscreteWrite(&gpioBeatDetector04, 1, 0x8000); // 2^19
+	XGpio_DiscreteWrite(&gpioBeatDetector04, 2, 0b1000000000 | 0x12); // Valid and bin 20.
 
 #endif // BEAT_DETECTION_HEADPHONES
 
@@ -231,6 +247,20 @@ int initializePeripherals() {
 
 	// Initialize AXI GPIO slave that is connected to custom beat detector 02.
 	status = XGpio_Initialize(&gpioBeatDetector02, DEVICE_ID_BEATDETECTOR02);
+	if (status != XST_SUCCESS) {
+		xil_printf("Gpio Beat Detector Initialization Failed\r\n");
+		return XST_FAILURE;
+	}
+
+	// Initialize AXI GPIO slave that is connected to custom beat detector 03.
+	status = XGpio_Initialize(&gpioBeatDetector03, DEVICE_ID_BEATDETECTOR03);
+	if (status != XST_SUCCESS) {
+		xil_printf("Gpio Beat Detector Initialization Failed\r\n");
+		return XST_FAILURE;
+	}
+
+	// Initialize AXI GPIO slave that is connected to custom beat detector 04.
+	status = XGpio_Initialize(&gpioBeatDetector04, DEVICE_ID_BEATDETECTOR04);
 	if (status != XST_SUCCESS) {
 		xil_printf("Gpio Beat Detector Initialization Failed\r\n");
 		return XST_FAILURE;
