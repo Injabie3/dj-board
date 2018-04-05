@@ -8,6 +8,7 @@
 
 void audioDriver();
 
+// Adjust pitch based on counter value
 void adjustPitch();
 
 // Receives data from line in.

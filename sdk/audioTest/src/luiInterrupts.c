@@ -19,9 +19,6 @@
 #include "Xil_exception.h"
 #include "luiMemoryLocations.h"
 
-// Uncomment the following line for UART debug code.
-//#define LUI_DEBUG
-
 // ####################
 // # GLOBAL VARIABLES #
 // ####################
@@ -37,7 +34,6 @@ int* equalizeCounter;
 int* recordCounter;
 int* record2Counter;
 int* maxRecordCounter;
-//int* maxRecord2Counter;
 int* playBackCounter;
 int* switchUpEcho = (int*) SWITCH_UP_ECHO;
 int* switchUpPitch = (int*) SWITCH_UP_PITCH;
@@ -169,7 +165,12 @@ int setupInterruptSystemTimerPs(XScuGic* interruptController, XScuTimer* timer, 
 
 
 
-// Registers the interrupt handler in the vector table, and enables IRQ interrupts in the ARM processor.
+// This registers the interrupt handler in the vector table, and
+// enables IRQ interrupts in the ARM processor.
+// Parameters:
+// - interruptController: 	A pointer to the interrupt controller.
+// Returns:
+// - None.
 void registerInterruptHandler(XScuGic* interruptController) {
 	// Initialize the exception table in the PS
 	Xil_ExceptionInit();
@@ -181,6 +182,7 @@ void registerInterruptHandler(XScuGic* interruptController) {
 	Xil_ExceptionEnable();
 }
 
+// This initializes all the required counters to 0.
 void setUpInterruptCounters() {
 	// initialize pitch adjustment counter
 	pitchCounter = (int*) PITCH_CNTR_LOCATION;
@@ -204,10 +206,6 @@ void setUpInterruptCounters() {
 
 	maxRecordCounter = (int*) MAX_RECORD_COUNTER;
 	*maxRecordCounter = 0;
-
-//	maxRecord2Counter = (int*) MAX_RECORD_COUNTER;
-//	*maxRecord2Counter = 0;
-
 
 	playBackCounter = (int*) PLAYBACK_COUNTER;
 	*playBackCounter = 0;

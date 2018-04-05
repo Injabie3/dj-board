@@ -66,12 +66,15 @@ int main()
     int* p0Echo = (int *)ECHO_CNTR_LOCATION;
     int* p0Pitch= (int *)PITCH_CNTR_LOCATION;
     u16* p0Equalizer = (u16 *)EQUAL_SEC_LOCATION;
+    int* p0Sfx = (int *)LUI_MEM_PS_PUSHBUTTON_RIGHT;
     int currentEcho = 0;
     int currentPitch = 0;
     int currentEqualizer = 0;
+    int currentSfx = 0;
     bool echoChanged = false;
     bool pitchChanged = false;
     bool equalizerChanged = false;
+    bool sfxChanged = false;
 
     InitVGA();
 
@@ -79,29 +82,38 @@ int main()
     DrawImage(Frame1, (struct image *) SPLASH_SCREEN, 0, 0);
     DrawImage(Frame1, (struct image *) VGA_TEXT_ECHO, 136, 50);
     DrawImage(Frame1, (struct image *) VGA_TEXT_PITCH, 136, 100);
-    DrawImage(Frame1, (struct image *) VGA_TEXT_EQUALIZER, 50, 150);
-    DrawImage(Frame1, (struct image *) VGA_TEXT_HIGH, 146, 200);
-    DrawImage(Frame1, (struct image *) VGA_TEXT_MID, 166, 250);
-    DrawImage(Frame1, (struct image *) VGA_TEXT_LOW, 154, 300);
+    DrawImage(Frame1, (struct image *) VGA_TEXT_SFX, 154, 150);
+    DrawImage(Frame1, (struct image *) VGA_TEXT_EQUALIZER, 50, 200);
+    DrawImage(Frame1, (struct image *) VGA_TEXT_HIGH, 146, 250);
+    DrawImage(Frame1, (struct image *) VGA_TEXT_MID, 166, 300);
+    DrawImage(Frame1, (struct image *) VGA_TEXT_LOW, 154, 350);
+
     DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 50);		// For Echo
     DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 100);		// For Pitch
-    DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 200);		// For High equalizer
-    DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 250);		// For Mid equalizer
-    DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 300);		// For Low equalizer
+    DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 150);		// For SFX
+    DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 350);		// For Low equalizer
+    DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 250);		// For High equalizer
+    DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 300);		// For Mid equalizer
+    DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 350);		// For Low equalizer
+
 
 
     DrawImage(Frame2, (struct image *) SPLASH_SCREEN, 0, 0);
     DrawImage(Frame2, (struct image *) VGA_TEXT_ECHO, 136, 50);
     DrawImage(Frame2, (struct image *) VGA_TEXT_PITCH, 136, 100);
-    DrawImage(Frame2, (struct image *) VGA_TEXT_EQUALIZER, 50, 150);
-    DrawImage(Frame2, (struct image *) VGA_TEXT_HIGH, 146, 200);
-    DrawImage(Frame2, (struct image *) VGA_TEXT_MID, 166, 250);
-    DrawImage(Frame2, (struct image *) VGA_TEXT_LOW, 154, 300);
-    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 50);
-    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 100);
-    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 200);
-    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 250);
-    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 300);
+    DrawImage(Frame2, (struct image *) VGA_TEXT_SFX, 154, 150);
+    DrawImage(Frame2, (struct image *) VGA_TEXT_EQUALIZER, 50, 200);
+    DrawImage(Frame2, (struct image *) VGA_TEXT_HIGH, 146, 250);
+    DrawImage(Frame2, (struct image *) VGA_TEXT_MID, 166, 300);
+    DrawImage(Frame2, (struct image *) VGA_TEXT_LOW, 154, 350);
+
+    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 50);		// For Echo
+    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 100);		// For Pitch
+    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 150);		// For SFX
+    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 350);		// For Low equalizer
+    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 250);		// For High equalizer
+    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 300);		// For Mid equalizer
+    DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 350);		// For Low equalizer
 
 	Xil_DCacheFlushRange((UINTPTR)Frame1, FRAME_LEN);
 	Xil_DCacheFlushRange((UINTPTR)Frame2, FRAME_LEN);
@@ -123,6 +135,11 @@ int main()
     	if(currentEqualizer != *p0Equalizer) {
     		currentEqualizer = *p0Equalizer;
     		equalizerChanged = true;
+    	}
+
+    	if(currentSfx != *p0Sfx) {
+    		currentSfx = *p0Sfx;
+    		sfxChanged = true;
     	}
 
     	if (echoChanged == true) {
@@ -157,39 +174,52 @@ int main()
     	if (equalizerChanged == true) {
 
 			if (currentEqualizer == 3) { // High frequency adjustmennt
-				DrawImage(Frame1, (struct image *) VGA_TEXT_ON, 250, 200);
-				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 250);
-				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 300);
-				DrawImage(Frame2, (struct image *) VGA_TEXT_ON, 250, 200);
-				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 250);
-				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 300);
-			}
-			else if (currentEqualizer == 2) { // Mid frequency adjustmennt
-				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 200);
 				DrawImage(Frame1, (struct image *) VGA_TEXT_ON, 250, 250);
 				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 300);
-				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 200);
+				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 350);
 				DrawImage(Frame2, (struct image *) VGA_TEXT_ON, 250, 250);
 				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 300);
+				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 350);
 			}
-			else if (currentEqualizer == 1) { // Low frequency adjustmennt
-				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 200);
+			else if (currentEqualizer == 2) { // Mid frequency adjustmennt
 				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 250);
 				DrawImage(Frame1, (struct image *) VGA_TEXT_ON, 250, 300);
-				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 200);
+				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 350);
 				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 250);
 				DrawImage(Frame2, (struct image *) VGA_TEXT_ON, 250, 300);
+				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 350);
 			}
-			else { // if (currentEqualizer == 0) { // Pitch off
-				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 200);
+			else if (currentEqualizer == 1) { // Low frequency adjustmennt
 				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 250);
 				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 300);
-				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 200);
+				DrawImage(Frame1, (struct image *) VGA_TEXT_ON, 250, 350);
 				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 250);
 				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 300);
+				DrawImage(Frame2, (struct image *) VGA_TEXT_ON, 250, 350);
+			}
+			else { // if (currentEqualizer == 0) { // Pitch off
+				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 250);
+				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 300);
+				DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 350);
+				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 250);
+				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 300);
+				DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 350);
 			}
 			equalizerChanged = false;
 		}
+
+    	//
+    	if (sfxChanged == true) {
+    		if (currentSfx == 0) { // Pitch off
+    			DrawImage(Frame1, (struct image *) VGA_TEXT_OFF, 250, 150);
+    			DrawImage(Frame2, (struct image *) VGA_TEXT_OFF, 250, 150);
+    		}
+    		else { // currentPitch != 0
+    			DrawImage(Frame1, (struct image *) VGA_TEXT_ON, 250, 150);
+    			DrawImage(Frame2, (struct image *) VGA_TEXT_ON, 250, 150);
+    		}
+    		sfxChanged = false;
+    	}
 
     	// Flush cache to immediately draw image on screen.
     	Xil_DCacheFlushRange((UINTPTR)Frame1, FRAME_LEN);

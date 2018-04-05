@@ -52,7 +52,6 @@
 #include "xgpiops.h"				// GPIO drivers, PS side.
 #include "xscutimer.h"				// Timer drivers.
 #include "xil_printf.h"
-//#include "xintc.h"
 #include "xscugic.h" 				// Interrupt controller drivers.
 #include "xaxidma.h" 				// DMA drivers.
 #include "xil_exception.h"
@@ -78,8 +77,6 @@
 #define DEVICE_ID_DMA					XPAR_AXIDMA_0_DEVICE_ID
 #define DEVICE_ID_TIMER					XPAR_PS7_SCUTIMER_0_DEVICE_ID
 
-#define BEAT_DETECTION_SPEAKERS
-//#define BEAT_DETECTION_HEADPHONES
 //#define INTERRUPTCONTROLLER_ADDRESS		XPAR_AXI_INTC_0_BASEADDR
 
 static XGpio gpioMiddleC; 					// AXI GPIO object for the middle C note.
@@ -105,45 +102,17 @@ int switches;
 // Initialize GPIO peripherals and the PS interrupt controller
 int initializePeripherals();
 
-// This function is a loop to test the audio with GPIO switches.
-void audioLoop();
+void setUpBeatDetection();
 
 int main()
 {
-	int status;
     init_platform();
     XScuGic test;
     * psInterruptController = test;
+
     initializePeripherals();
 
-#ifdef BEAT_DETECTION_SPEAKERS
-    // Set up the beat detector to detect certain bins
-    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x80000); // 2^19
-    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0x0); // Valid and bin 0.
-
-    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x800000); // 2^19
-    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x5); // Valid and bin 5.
-
-    XGpio_DiscreteWrite(&gpioBeatDetector03, 1, 0x800000); // 2^19
-	XGpio_DiscreteWrite(&gpioBeatDetector03, 2, 0b1000000000 | 0xA); // Valid and bin 10.
-
-	XGpio_DiscreteWrite(&gpioBeatDetector04, 1, 0x800000); // 2^19
-	XGpio_DiscreteWrite(&gpioBeatDetector04, 2, 0b1000000000 | 0xE); // Valid and bin 15.
-#endif // BEAT_DETECTION_SPEAKERS
-#ifdef BEAT_DETECTION_HEADPHONES
-    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x8000); // 2^15
-    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0x1); // Valid and bin 1.
-
-    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x8000); // 2^15
-    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x6); // Valid and bin 6.
-
-    XGpio_DiscreteWrite(&gpioBeatDetector03, 1, 0x2000); // 2^13
-	XGpio_DiscreteWrite(&gpioBeatDetector03, 2, 0b1000000000 | 0xC); // Valid and bin 12.
-
-	XGpio_DiscreteWrite(&gpioBeatDetector04, 1, 0x2000); // 2^13
-	XGpio_DiscreteWrite(&gpioBeatDetector04, 2, 0b1000000000 | 0x12); // Valid and bin 18.
-
-#endif // BEAT_DETECTION_HEADPHONES
+    setUpBeatDetection();
 
     //setupInterruptSystemXIntc(&interruptController, &gpioSwitches, XPAR_INTC_0_GPIO_1_VEC_ID, gpioSwitchesInterruptHandler);
 	// Set up interrupt handler for switches.
@@ -286,47 +255,36 @@ int initializePeripherals() {
 	return status;
 }
 
-// This function is a loop to test the audio with GPIO switches.
-void audioLoop() {
-	int tone = 0;
-	u32* plPushButtonEnabled = (u32 *) LUI_MEM_PL_PUSHBUTTONS;
-	circular_buf_t circularBuffer;
-	circularBuffer.size = 48000*3;
-	circularBuffer.buffer = (uint32_t*) CIRCULAR_BUFFER_BASE;
-	circular_buf_reset(&circularBuffer);
-	circularBuffer.startingIndex = 24000;
+void setUpBeatDetection() {
 
-	volatile u32* AUDIOCHIP = ((volatile u32*)XPAR_AUDIOINOUT16_0_S00_AXI_BASEADDR);
-	for (int index = 0; index < 48000; ) {
+	#ifdef BEAT_DETECTION_SPEAKERS
+    // Set up the beat detector to detect certain bins
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x80000); // 2^19
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0x0); // Valid and bin 0.
 
-		// Wait for ADC FIFO to not be empty.
-		if ((AUDIOCHIP[0] & 1 << 2) == 0) {
-			circular_buf_put(&circularBuffer, AUDIOCHIP[2]);
-			index++;
-		}
-	}
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x800000); // 2^19
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x5); // Valid and bin 5.
 
-	while (1) {
-		// WAIT FOR DAC FIFO TO BE EMPTY.
-		int* echoCounter = (int *) ECHO_CNTR_LOCATION;
-		int echoAmount = *echoCounter;
-		if ((AUDIOCHIP[0] & 1<<3)!=0) {
-			if (echoAmount == 0)
-				circular_buf_get(&circularBuffer, &AUDIOCHIP[1]);
-			else
-				circular_buf_getSummedTaps(&circularBuffer, &AUDIOCHIP[1], echoAmount*120);
-			circular_buf_put(&circularBuffer, AUDIOCHIP[2]);
-			//AUDIOCHIP[1] = AUDIOCHIP[2];
+    XGpio_DiscreteWrite(&gpioBeatDetector03, 1, 0x800000); // 2^19
+	XGpio_DiscreteWrite(&gpioBeatDetector03, 2, 0b1000000000 | 0xA); // Valid and bin 10.
 
-		}
+	XGpio_DiscreteWrite(&gpioBeatDetector04, 1, 0x800000); // 2^19
+	XGpio_DiscreteWrite(&gpioBeatDetector04, 2, 0b1000000000 | 0xE); // Valid and bin 15.
+	#endif // BEAT_DETECTION_SPEAKERS
 
-		XGpio_SetDataDirection(&gpioMiddleC, 1, 0x0); // Set as output
-		// Set increment bit of middle C core.
-		XGpio_DiscreteWrite(&gpioMiddleC, 1, 0x1);
-		// Channel 2 controls the "clock", I toggle it here to "increment" it.
-		// This is for demonstration purposes, since I highly doubt we want the PS to toggle "clocks" for us.
-		XGpio_DiscreteWrite(&gpioMiddleC, 2, 0x0);
-		XGpio_DiscreteWrite(&gpioMiddleC, 2, 0x1);
+	#ifdef BEAT_DETECTION_HEADPHONES
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x8000); // 2^15
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b1000000000 | 0x1); // Valid and bin 1.
 
-	}
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x8000); // 2^15
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b1000000000 | 0x6); // Valid and bin 6.
+
+    XGpio_DiscreteWrite(&gpioBeatDetector03, 1, 0x2000); // 2^13
+	XGpio_DiscreteWrite(&gpioBeatDetector03, 2, 0b1000000000 | 0xC); // Valid and bin 12.
+
+	XGpio_DiscreteWrite(&gpioBeatDetector04, 1, 0x2000); // 2^13
+	XGpio_DiscreteWrite(&gpioBeatDetector04, 2, 0b1000000000 | 0x12); // Valid and bin 18.
+
+	#endif // BEAT_DETECTION_HEADPHONES
+
 }

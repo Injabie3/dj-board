@@ -6,15 +6,13 @@
 #include "xaxidma.h"
 
 
+// Configuration functions to adjust the AXI-S FFT core.
 int XGpio_FftConfig();
 int XGpio_IFftConfig();
 
 
 // function to shift the bits of the IFFT output data before sending back to Codec
 void shiftBits(volatile u64* bufferToShift, volatile u64* bufferToStoreIn);
-
-void shiftBitsRight(volatile u64* bufferToShift, volatile u64* bufferToStoreIn);
-
 
 // This function does the following:
 // - Initializes the DMA.

@@ -56,9 +56,12 @@ int setupInterruptSystemGpioPs(XScuGic* interruptController, XGpioPs* gpio, int 
 // - XST_FAILURE, if the interrupt system could not be set up.
 int setupInterruptSystemTimerPs(XScuGic* interruptController, XScuTimer* timer, int interruptID, Xil_ExceptionHandler interruptHandler);
 
-// Registers the interrupt handler in the vector table, and enables IRQ interrupts in the ARM processor.
+// This registers the interrupt handler in the vector table, and enables IRQ interrupts in the ARM processor.
+// Parameters:
+// - interruptController: 	A pointer to the interrupt controller.
 void registerInterruptHandler(XScuGic* interruptController);
 
+// This initializes all the required counters to 0.
 void setUpInterruptCounters();
 
 // #######################################

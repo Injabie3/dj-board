@@ -6,7 +6,8 @@ static bool isConfigured = FALSE;
 int InterruptInit(void)
 {
 	int Status = SUCCESS;
-	XScuGic_Config *IntcConfig;
+	// Commenting out the following section, since this is done in ARM core 0.
+//	XScuGic_Config *IntcConfig;
 
 //	IntcConfig = XScuGic_LookupConfig(INTC_DEVICE_ID);
 //	if (NULL == IntcConfig)
@@ -24,7 +25,7 @@ int InterruptInit(void)
 	Xil_ExceptionRegisterHandler(XIL_EXCEPTION_ID_INT,
 			(Xil_ExceptionHandler) XScuGic_InterruptHandler, (void *) Intc);
 //
-//	Xil_ExceptionEnable();
+	Xil_ExceptionEnable();
 
 	isConfigured = TRUE;
 

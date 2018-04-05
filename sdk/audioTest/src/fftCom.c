@@ -7,9 +7,8 @@
 
 static XGpio gpioFftConfig;					// AXI GPIO object for the FFT configuration.
 static XAxiDma axiDma;						// AXI DMA object that is tied with the FFT core.
-static XAxiDma axiDmaMix;						// AXI DMA object that is tied with the FFT core.
 
-//
+
 //#define FFT_256		// 256pt FFT bitstream.
 #define FFT_512	// 512pt FFT bitstream.
 
@@ -18,7 +17,6 @@ void shiftBits(volatile u64* bufferToShift, volatile u64* bufferToStoreIn) {
 	// Some easy constants to adjust.
 	const uint POINT_SIZE = 512;
 	const uint BITS_TO_SHIFT = 0;
-
 
 	u64 temp[POINT_SIZE];
 
@@ -35,36 +33,7 @@ void shiftBits(volatile u64* bufferToShift, volatile u64* bufferToStoreIn) {
 			bufferToStoreIn[POINT_SIZE-i] = temp[i];
 		}
 	}
-	// now need to swap the order  of the bits
-
-
-
-}
-
-void shiftBitsRight(volatile u64* bufferToShift, volatile u64* bufferToStoreIn) {
-
-	// Some easy constants to adjust.
-	const uint POINT_SIZE = 64;
-	const uint BITS_TO_SHIFT = 5;
-
-
-	u64 temp[POINT_SIZE];
-
-	for (int i=0; i < POINT_SIZE; i++) {
-		temp[i] = (bufferToShift[i] >> BITS_TO_SHIFT) & 0xFFFF000000000000;
-		temp[i] = (((bufferToShift[i] & 0xFFFF00000000) >> BITS_TO_SHIFT) & 0xFFFF00000000) | temp[i];
-		temp[i] = (((bufferToShift[i] & 0xFFFF0000) >> BITS_TO_SHIFT) & 0xFFFF0000) | temp[i]; // concatenating as we go
-		temp[i] = ((bufferToShift[i] & 0xFFFF ) >> BITS_TO_SHIFT) | temp[i]; // the LSB part
-
-		if (i==0)
-			bufferToStoreIn[i] = temp[i];
-		else {
-			bufferToStoreIn[POINT_SIZE-i] = temp[i];
-		}
-	}
-	// now need to swap the order  of the bits
-
-
+	// now need to swap the order of the bits
 
 }
 

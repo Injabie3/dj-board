@@ -3,7 +3,7 @@ connect
 target 3
 
 # Change the following line to reflect your working directory.
-cd C:/Users/ijovasev/Desktop/2018-04-04/audioOutAXI/audioOutAXI.sdk/vga/images
+cd C:/github/audioOutAXI/audioOutAXI.sdk/vga/images
 
 # Images
 dow -data SPLASH_SCREEN.bin          0x02100000
@@ -15,6 +15,7 @@ dow -data VGA_TEXT_OFF.bin           0x0219D594
 dow -data VGA_TEXT_HIGH.bin          0x0219E420
 dow -data VGA_TEXT_MID.bin           0x0219FFA4
 dow -data VGA_TEXT_LOW.bin           0x021A0F98
+dow -data VGA_TEXT_SFX.bin           0x0‭21A225C
 
 # Stored sounds.
 dow -data anotherOne-headphones.bin  0x00504000
