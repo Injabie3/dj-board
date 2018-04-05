@@ -430,7 +430,6 @@ void gpioPushButtonsPSInterruptHandler(void *CallbackRef) {
 			print("PS Left Button released!\n\r");
 #endif // LUI_DEBUG
 			*psLeftPushButtonEnabled = 0;
-			*psRightPushButtonEnabled = 0;
 		}
 		if (timerPointer) {
 			ignoreButtonPress = 1;

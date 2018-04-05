@@ -142,13 +142,15 @@ void audioDriver(){
 //			RxToMixBufferPtr[index] = ((RxShiftBufferPtr[256+index] & 0xFFFF) | ((RxShiftBufferPtr[256+index] >> 16) & 0xFFFF0000));
 		}
 
+		// drive both interrupts to 0 so ivana's hardware block doesn't die
+		 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, 0);
+		 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, 0);
+
 		// if interrupt is enabled
 		if (*psRightPushButtonEnabled){
 		// start DATA TRANSFER of recorded sample with DMA
 
-			// drive both interrupts to 0 so ivana's hardware block doesn't die
-			 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, 0);
-			 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, 0);
+
 
 //////////----------TO PLAY ANOTHER ONE ----------------------///////////
 			 if (*switchUpStoredSound1 == 1){
