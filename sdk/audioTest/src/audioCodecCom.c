@@ -24,6 +24,7 @@ volatile u64 *RxBufferPtr = (u64*)RX_BUFFER_BASE;
 volatile u64 *Rx2BufferPtr = (u64*)RX_2_BUFFER_BASE;
 volatile u64 *RxShiftBufferPtr = (u64*)RX_SHIFT_BUFFER_BASE;
 volatile u32 *RecBufferPtr = (volatile u32*)REC_BUFFER_BASE;
+volatile u32 *Rec2BufferPtr = (volatile u32*)REC_2_BUFFER_BASE;
 volatile u64 *Rx2ShiftBufferPtr = (u64*)RX_2_SHIFT_BUFFER_BASE;
 
 volatile u32 *RxToMixBufferPtr = (u32*)RX_TOMIX_BUFFER_BASE;
@@ -35,6 +36,7 @@ int* echoCounter = (int *) ECHO_CNTR_LOCATION;
 circular_buf_t circularBuffer;
 int *maxRecordCounter = (int*) MAX_RECORD_COUNTER;
 int *recordCounter = (int*) RECORD_COUNTER;
+int *record2Counter = (int*) RECORD2_COUNTER;
 int *playBackCounter = (int*) PLAYBACK_COUNTER;
 
 static XGpio gpioPlaybackInterrupt; // AXI GPIO object for play back interrupt
@@ -60,6 +62,7 @@ void audioDriver(){
 	int* switchUpStoredSound1 = (int*) STORED_SOUND_1_ENABLED;
 	int* switchUpStoredSound2 = (int*) STORED_SOUND_2_ENABLED;
 	int* switchUpLoopback = (int*) LOOPBACK_ENABLED;
+	int* recordSound2 = (int*) RECORD2_ENABLED;
 
 	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
 	// Instantiate the circular buffer.
@@ -146,8 +149,9 @@ void audioDriver(){
 			// drive both interrupts to 0 so ivana's hardware block doesn't die
 			 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, 0);
 			 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, 0);
+
 //////////----------TO PLAY ANOTHER ONE ----------------------///////////
-			if (*switchUpStoredSound1 == 1){
+			 if (*switchUpStoredSound1 == 1){
 				 if ((*playBackCounter) < (STORED_SOUND_ANOTHER_ONE_LENGTH)){
 					 // send recordPlayback interrupt
 					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, *psRightPushButtonEnabled);
@@ -157,11 +161,10 @@ void audioDriver(){
 				 else {
 					 *playBackCounter = 0;
 					 *psRightPushButtonEnabled = 0;
-					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, *psRightPushButtonEnabled);
-					 }
+					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, 0);
+					}
 
 			}
-
 
 			else if (*switchUpStoredSound2 == 1){
 				 if ((*playBackCounter) < (STORED_SOUND_AIRHORN_LENGTH)){
@@ -173,26 +176,59 @@ void audioDriver(){
 				 else {
 					 *playBackCounter = 0;
 					 *psRightPushButtonEnabled = 0;
-					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, *psRightPushButtonEnabled);
+					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, 0);
 					 }
 			}
 
 
 
 			else if (*switchUpLoopback == 1){
-				 if ((*playBackCounter) < ((*recordCounter)-256)){
+				// need to determine which sound to play
+				// to play recorded sound #2
+				if (*recordSound2 == 1){
+					 if ((*playBackCounter) < ((*record2Counter)-256)){
+						 // send recordPlayback interrupt
+						 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
+					    status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, Rec2BufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
+						(*playBackCounter)+=256;
+					 }
+					 else {
+					 		*playBackCounter = 0;
+					 		//*psRightPushButtonEnabled = 1;
+					 		XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, 0);
+					 	 }
+
+				}
+				// to play recorded sound #1
+				else {
+					 if ((*playBackCounter) < ((*recordCounter)-256)){
+						 // send recordPlayback interrupt
+						 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
+							 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
+						(*playBackCounter)+=256;
+					 }
+					 else {
+					 		*playBackCounter = 0;
+					 		//*psRightPushButtonEnabled = 1;
+					 		XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, 0);
+					 	 }
+				}
+			}
+
+			else if (*recordSound2 == 1){
+				 if ((*playBackCounter) < ((*record2Counter)-256)){
 					 // send recordPlayback interrupt
 					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
-					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
+					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, Rec2BufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
 					(*playBackCounter)+=256;
 				 }
 				 else {
 					 *playBackCounter = 0;
-					 //*psRightPushButtonEnabled = 1;
+					 *psRightPushButtonEnabled = 0;
 					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, 0);
-					 }
-
+			    }
 			}
+
 			else {
 				 if ((*playBackCounter) < ((*recordCounter)-256)){
 					 // send recordPlayback interrupt
@@ -203,7 +239,7 @@ void audioDriver(){
 				 else {
 					 *playBackCounter = 0;
 					 *psRightPushButtonEnabled = 0;
-					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
+					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, 0);
 					 }
 			}
 		}
@@ -256,6 +292,7 @@ void dataIn(int samplesToRead, volatile u64* toBuffer, int offset) {
 	u32 tempLeft = 0;
 	u32 tempRight = 0;
 	u32* psLeftPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_LEFT;
+	int* recordSound2 = (int*) RECORD2_ENABLED;
 
 	while (dataIn < samplesToRead){
 		// check if the ADC FIFO is not empty
@@ -272,10 +309,18 @@ void dataIn(int samplesToRead, volatile u64* toBuffer, int offset) {
 			// want to record data in for how long button is being held down or a maximum of seconds
 			if ((*psLeftPushButtonEnabled)) {
 				if ((*maxRecordCounter) < 480000){
-				// want to write samples for 5 seconds to a recording buffer
-				RecBufferPtr[*maxRecordCounter] = temp;
-				(*recordCounter)++;
-				(*maxRecordCounter)++;
+					// want to see which sample we are recording
+					if (*recordSound2 == 1){
+						Rec2BufferPtr[*maxRecordCounter] = temp;
+						(*record2Counter)++;
+						(*maxRecordCounter)++;
+					}
+					else {
+						// want to write samples for 5 seconds to a recording buffer
+						RecBufferPtr[*maxRecordCounter] = temp;
+						(*recordCounter)++;
+						(*maxRecordCounter)++;
+						}
 				}
 				else {
 				   *maxRecordCounter = 0;
@@ -309,7 +354,7 @@ void dataOut(int samplesToSend, volatile u32* fromBuffer, int offset, bool circu
 //	int16_t tempLeftRec = 0;
 //	int16_t tempRightRec = 0;
 	int echoAmount = *echoCounter;
-	u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
+	//u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
 
 	//now we want to check the DAC
 	while(dataOut < (samplesToSend)){
@@ -547,7 +592,7 @@ void equalize(){
 		// want to amplify LOW frequency sounds
 		if (*equalizePart == 1){
 			// for 512 point FFT we define
-			// low frequencies in bins 1 to 85
+			// low frequencies in bins 1 to 5
 			for (int i=0;i<5;i++) {
 				rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
 				rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
@@ -626,7 +671,7 @@ void equalize(){
 		}
 		// want to amplify MID frequency sounds
 		else if(*equalizePart == 2){
-			for (int i=5;i<80;i++) {
+			for (int i=20;i<80;i++) {
 				rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
 				rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
 				lChImag = (MxBufferPtr[i] & 0xFFFF0000) >> 16;
@@ -704,7 +749,7 @@ void equalize(){
 		}
 		// want to amplify HIGH frequency sounds
 		else if (*equalizePart == 3){
-			for (int i=40;i<90;i++) {
+			for (int i=40;i<60;i++) {
 				rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
 				rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
 				lChImag = (MxBufferPtr[i] & 0xFFFF0000) >> 16;
@@ -782,6 +827,81 @@ void equalize(){
 
 
 			} // ends for loop
+
+			for (int i=0;i<5;i++) {
+							rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
+							rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
+							lChImag = (MxBufferPtr[i] & 0xFFFF0000) >> 16;
+							lChReal = MxBufferPtr[i] & 0xFFFF;
+
+							// shift to get correct values
+
+
+							lChMag = sqrt(((double)lChImag*(double)lChImag) + ((double)lChReal*(double)lChReal));
+							lChPhase = atan((double)lChImag/(double)lChReal);
+							rChMag = sqrt((rChImag*rChImag) + (rChReal*rChReal));
+							rChPhase = atan((double)rChImag/(double)rChReal);
+
+
+							// now need to increase magnitude by counter amount
+			//				if (*equalizeCounter > 0){
+			//					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
+			//					rChMag *= (*equalizeCounter);
+			//				}
+			//				else if (*equalizeCounter < 0){
+			//					lChMag /= (-1)*(*equalizeCounter);
+			//					rChMag /= (-1)*(*equalizeCounter);
+			//				}
+
+			//------------------------Equalizing will no longer be user manipulated - can only be "on" or "off" --------------------------------//
+
+							lChMag /= 5;
+							rChMag /= 5;
+							//now need to convert back to real/imaginary
+							lChReal = lChMag *cos(lChPhase);
+							lChImag = lChMag *sin(lChPhase);
+							rChReal = rChMag * cos(rChPhase);
+							rChImag = rChMag * sin(rChPhase);
+
+							// but back in MxBuf to be sent to IFFT
+							MxBufferPtr[i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
+
+							rChImag = (MxBufferPtr[511-i] & 0xFFFF000000000000) >> 48;
+							rChReal = (MxBufferPtr[511-i] & 0xFFFF00000000) >> 32;
+							lChImag = (MxBufferPtr[511-i] & 0xFFFF0000) >> 16;
+							lChReal = MxBufferPtr[511-i] & 0xFFFF;
+
+
+
+							lChMag = sqrt(((double)lChImag*(double)lChImag) + ((double)lChReal*(double)lChReal));
+							lChPhase = atan((double)lChImag/(double)lChReal);
+							rChMag = sqrt((rChImag*rChImag) + (rChReal*rChReal));
+							rChPhase = atan((double)rChImag/(double)rChReal);
+
+
+							// now need to increase magnitude by counter amount
+							// now need to increase magnitude by counter amount
+			//				if (*equalizeCounter > 0){
+			//					lChMag *= (*equalizeCounter); // so just going to add to it rn not sure what effect this will have
+			//					rChMag *= (*equalizeCounter);
+			//				}
+			//				else if (*equalizeCounter < 0){
+			//					lChMag /= (-1)*(*equalizeCounter);
+			//					rChMag /= (-1)*(*equalizeCounter);
+			//				}
+			//------------------------Equalizing will no longer be user manipulated - can only be "on" or "off" --------------------------------//
+
+							lChMag /= 5;
+							rChMag /= 5;
+							//now need to convert back to real/imaginary
+							lChReal = lChMag * cos(lChPhase);
+							lChImag = lChMag * sin(lChPhase);
+							rChReal = rChMag * cos(rChPhase);
+							rChImag = rChMag * sin(rChPhase);
+
+							// but back in MxBuf to be sent to IFFT
+							MxBufferPtr[511-i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
+			}
 
 		} // ends if condition for which part to equalize
 	} // ends if condition for if we want to equalize at all

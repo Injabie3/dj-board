@@ -35,13 +35,16 @@ int* pitchCounter;
 int* echoCounter;
 int* equalizeCounter;
 int* recordCounter;
+int* record2Counter;
 int* maxRecordCounter;
+//int* maxRecord2Counter;
 int* playBackCounter;
 int* switchUpEcho = (int*) SWITCH_UP_ECHO;
 int* switchUpPitch = (int*) SWITCH_UP_PITCH;
 int* switchUpStoredSound1 = (int*) STORED_SOUND_1_ENABLED;
 int* switchUpStoredSound2 = (int*) STORED_SOUND_2_ENABLED;
 int* switchUpLoopback = (int*) LOOPBACK_ENABLED;
+int* recordSound2 = (int*) RECORD2_ENABLED;
 u32* psLeftPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_LEFT;
 u32* psRightPushButtonEnabled = (u32 *) LUI_MEM_PS_PUSHBUTTON_RIGHT;
 
@@ -195,8 +198,16 @@ void setUpInterruptCounters() {
 	recordCounter = (int*) RECORD_COUNTER;
 	*recordCounter = 0;
 
+	// second recorded sound
+	record2Counter = (int*) RECORD2_COUNTER;
+	*record2Counter = 0;
+
 	maxRecordCounter = (int*) MAX_RECORD_COUNTER;
 	*maxRecordCounter = 0;
+
+//	maxRecord2Counter = (int*) MAX_RECORD_COUNTER;
+//	*maxRecord2Counter = 0;
+
 
 	playBackCounter = (int*) PLAYBACK_COUNTER;
 	*playBackCounter = 0;
@@ -248,22 +259,35 @@ void gpioSwitchesInterruptHandler(void *CallbackRef) {
 		*switchUpEcho = 0;
 	}
 
-	// Stored Sound 1 - Check if Switch 5 is up.
-	// DJ KHALED ANOTHER ONE
-	if ((switches & (1 << 5)) != 0) {
-		*switchUpStoredSound1 = 1;
-	}
-	else {
+	//Switches and Recorded Sounds
+
+	// check if we want to record a 2nd
+	if (((switches & (1 << 5)) != 0) && ((switches & (1 << 6)) != 0)){
+		*recordSound2 = 1;
 		*switchUpStoredSound1 = 0;
+		*switchUpStoredSound2 = 0;
 	}
 
-	// Stored Sound 2 - Check if Switch 6 is up.
-	// Airhorn sound
-	if ((switches & (1 << 6)) != 0) {
-		*switchUpStoredSound2 = 1;
-	}
+	// if BOTH switches aren't up, we want to check each one individually
 	else {
-		*switchUpStoredSound2 = 0;
+		*recordSound2 = 0;
+		// Stored Sound 1 - Check if Switch 5 is up.
+		// DJ KHALED ANOTHER ONE
+		if ((switches & (1 << 5)) != 0) {
+			*switchUpStoredSound1 = 1;
+		}
+		else {
+			*switchUpStoredSound1 = 0;
+		}
+
+		// Stored Sound 2 - Check if Switch 6 is up.
+		// Airhorn sound
+		if ((switches & (1 << 6)) != 0) {
+			*switchUpStoredSound2 = 1;
+		}
+		else {
+			*switchUpStoredSound2 = 0;
+		}
 	}
 
 	// Loopback - Check if Switch 7 is up.
@@ -389,11 +413,12 @@ void gpioPushButtonsPSInterruptHandler(void *CallbackRef) {
 	if (ignoreButtonPress == 0) {
 		// b
 		if(leftButton == 1) {
-#ifdef LUI_DEBUG
-			print("Record Button pressed!\n\r");
-#endif // LUI_DEBUG
 			*psLeftPushButtonEnabled = 1;
-			*recordCounter = 0;
+			if (*recordSound2 == 1)
+				*record2Counter = 0;
+
+			else // in this case we are recording sound 1
+				*recordCounter = 0;
 		}
 
 		else if (rightButton == 1){

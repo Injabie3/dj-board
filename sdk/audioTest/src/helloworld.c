@@ -170,15 +170,6 @@ int main()
 
     print("Hello World from CPU 0\n\r");
 
-    // test data
-	/*TxBufferPtr[0] = 0x0000000000004000;
-	TxBufferPtr[1] = 0x00000000c6fae2f2;
-	TxBufferPtr[2] = 0x0000000033c7da62;
-	TxBufferPtr[3] = 0x000000000a033f36;
-	TxBufferPtr[4] = 0x00000000c322ec39;
-	TxBufferPtr[5] = 0x000000002d41d2bf;
-	TxBufferPtr[6] = 0x0000000013c73cde;
-	TxBufferPtr[7] = 0x00000000c0caf5fd;*/
 
 	audioDriver(); // all the ADC/DAC read/write and FFT stuff taken out of here
 

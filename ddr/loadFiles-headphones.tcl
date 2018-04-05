@@ -3,7 +3,7 @@ connect
 target 3
 
 # Change the following line to reflect your working directory.
-cd D:/github/audioOutAXI/audioOutAXI.sdk/vga/images
+cd C:/Users/ijovasev/Desktop/2018-04-04/audioOutAXI/audioOutAXI.sdk/vga/images
 
 # Images
 dow -data SPLASH_SCREEN.bin          0x02100000
