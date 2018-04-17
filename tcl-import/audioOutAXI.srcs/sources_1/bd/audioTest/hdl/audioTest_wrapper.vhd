@@ -1,7 +1,7 @@
 --Copyright 1986-2017 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2017.3 (win64) Build 2018833 Wed Oct  4 19:58:22 MDT 2017
---Date        : Wed Apr  4 00:25:32 2018
+--Date        : Mon Apr 16 16:55:58 2018
 --Host        : Lui-Ryan-New running 64-bit major release  (build 9200)
 --Command     : generate_target audioTest_wrapper.bd
 --Design      : audioTest_wrapper
@@ -44,6 +44,14 @@ entity audioTest_wrapper is
     FIXED_IO_ps_clk : inout STD_LOGIC;
     FIXED_IO_ps_porb : inout STD_LOGIC;
     FIXED_IO_ps_srstb : inout STD_LOGIC;
+    JC1_N : out STD_LOGIC;
+    JC1_P : out STD_LOGIC;
+    JC2_N : out STD_LOGIC;
+    JC2_P : out STD_LOGIC;
+    JC3_N : out STD_LOGIC;
+    JC3_P : out STD_LOGIC;
+    JC4_N : out STD_LOGIC;
+    JC4_P : out STD_LOGIC;
     LD0 : out STD_LOGIC;
     LD1 : out STD_LOGIC;
     LD2 : out STD_LOGIC;
@@ -98,19 +106,27 @@ architecture STRUCTURE of audioTest_wrapper is
     AC_SDA : inout STD_LOGIC;
     btns_5bits : in STD_LOGIC_VECTOR ( 4 downto 0 );
     sws_8bits : in STD_LOGIC_VECTOR ( 7 downto 0 );
-    LD1 : out STD_LOGIC;
-    LD0 : out STD_LOGIC;
-    LD6 : out STD_LOGIC;
-    LD7 : out STD_LOGIC;
-    LD3 : out STD_LOGIC;
-    LD2 : out STD_LOGIC;
-    LD5 : out STD_LOGIC;
-    LD4 : out STD_LOGIC;
     VGA_HSYNC : out STD_LOGIC;
     VGA_VSYNC : out STD_LOGIC;
     VGA_R : out STD_LOGIC_VECTOR ( 3 downto 0 );
     VGA_G : out STD_LOGIC_VECTOR ( 3 downto 0 );
-    VGA_B : out STD_LOGIC_VECTOR ( 3 downto 0 )
+    VGA_B : out STD_LOGIC_VECTOR ( 3 downto 0 );
+    LD0 : out STD_LOGIC;
+    LD7 : out STD_LOGIC;
+    LD1 : out STD_LOGIC;
+    LD6 : out STD_LOGIC;
+    LD5 : out STD_LOGIC;
+    LD2 : out STD_LOGIC;
+    LD4 : out STD_LOGIC;
+    LD3 : out STD_LOGIC;
+    JC1_P : out STD_LOGIC;
+    JC1_N : out STD_LOGIC;
+    JC2_P : out STD_LOGIC;
+    JC2_N : out STD_LOGIC;
+    JC3_P : out STD_LOGIC;
+    JC3_N : out STD_LOGIC;
+    JC4_P : out STD_LOGIC;
+    JC4_N : out STD_LOGIC
   );
   end component audioTest;
 begin
@@ -147,6 +163,14 @@ audioTest_i: component audioTest
       FIXED_IO_ps_clk => FIXED_IO_ps_clk,
       FIXED_IO_ps_porb => FIXED_IO_ps_porb,
       FIXED_IO_ps_srstb => FIXED_IO_ps_srstb,
+      JC1_N => JC1_N,
+      JC1_P => JC1_P,
+      JC2_N => JC2_N,
+      JC2_P => JC2_P,
+      JC3_N => JC3_N,
+      JC3_P => JC3_P,
+      JC4_N => JC4_N,
+      JC4_P => JC4_P,
       LD0 => LD0,
       LD1 => LD1,
       LD2 => LD2,

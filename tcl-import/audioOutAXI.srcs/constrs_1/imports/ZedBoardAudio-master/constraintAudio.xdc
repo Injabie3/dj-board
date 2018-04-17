@@ -79,6 +79,21 @@ set_property PACKAGE_PIN H18 [get_ports {sws_8bits[5]}];  # "SW5"
 set_property PACKAGE_PIN H17 [get_ports {sws_8bits[6]}];  # "SW6"
 set_property PACKAGE_PIN M15 [get_ports {sws_8bits[7]}];  # "SW7"
 
+# ----------------------------------------------------------------------------
+# JC Pmod - Bank 13
+# ---------------------------------------------------------------------------- 
+set_property PACKAGE_PIN AB6 [get_ports {JC1_N}];  # "JC1_N"
+set_property PACKAGE_PIN AB7 [get_ports {JC1_P}];  # "JC1_P"
+set_property PACKAGE_PIN AA4 [get_ports {JC2_N}];  # "JC2_N"
+set_property PACKAGE_PIN Y4  [get_ports {JC2_P}];  # "JC2_P"
+set_property PACKAGE_PIN T6  [get_ports {JC3_N}];  # "JC3_N"
+set_property PACKAGE_PIN R6  [get_ports {JC3_P}];  # "JC3_P"
+set_property PACKAGE_PIN U4  [get_ports {JC4_N}];  # "JC4_N"
+set_property PACKAGE_PIN T4  [get_ports {JC4_P}];  # "JC4_P"
+
 set_property IOSTANDARD LVCMOS33 [get_ports -of_objects [get_iobanks 33]];
 set_property IOSTANDARD LVCMOS18 [get_ports -of_objects [get_iobanks 34]];
 set_property IOSTANDARD LVCMOS18 [get_ports -of_objects [get_iobanks 35]];
+
+# Note that the bank voltage for IO Bank 13 is fixed to 3.3V on ZedBoard. 
+set_property IOSTANDARD LVCMOS33 [get_ports -of_objects [get_iobanks 13]];
