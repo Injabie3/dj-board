@@ -155,12 +155,6 @@ int main()
 int initializePeripherals() {
 	int status;
 	// Initialize the Interrupt Controller
-//	status = XIntc_Initialize(&interruptController, DEVICE_ID_INTERRUPTCONTROLLER);
-//	if (status != XST_SUCCESS) {
-//		xil_printf("Error: Interrupt controller initialization failed!\r\n");
-//		return XST_FAILURE;
-//	}
-
 	interruptControllerConfig = XScuGic_LookupConfig(XPAR_SCUGIC_0_DEVICE_ID);
 	if (NULL == interruptControllerConfig) {
 		return XST_FAILURE;
@@ -169,11 +163,6 @@ int initializePeripherals() {
 	status = XScuGic_CfgInitialize(psInterruptController, interruptControllerConfig, interruptControllerConfig->CpuBaseAddress);
 	if (status != XST_SUCCESS) {
 		xil_printf("Error: Interrupt controller initialization failed!\r\n");
-		return XST_FAILURE;
-	}
-
-	//status = XIntc_SelfTest(&interruptController);
-	if (status != XST_SUCCESS) {
 		return XST_FAILURE;
 	}
 

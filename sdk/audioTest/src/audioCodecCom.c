@@ -40,8 +40,9 @@ int *record2Counter = (int*) RECORD2_COUNTER;
 int *playBackCounter = (int*) PLAYBACK_COUNTER;
 
 static XGpio gpioPlaybackInterrupt; // AXI GPIO object for play back interrupt
-XAxiDma axiDmaRecord; // DMA for the recorded data
-XAxiDma axiDmaRx; // DMA for the standard audio data
+XAxiDma axiDmaFft;		// DMA for the FFT.
+XAxiDma axiDmaRecord;	// DMA for the recorded data
+XAxiDma axiDmaRx;		// DMA for the standard audio data
 XAxiDma axiDmaStore;
 
 // QUICK DEBUG SWITCHES
@@ -80,6 +81,39 @@ void audioDriver(){
 		return;
 	}
 
+	// Configure the FFT DMA.
+	status = setupDma(&axiDmaFft, DEVICE_ID_DMA_FFT);
+
+	if (status != XST_SUCCESS) {
+		xil_printf("Error: FFT DMA initialization failed!\r\n");
+		return;
+	}
+
+	// Configure the FFT GPIO
+	status = setUpFftGpio(DEVICE_ID_FFT_GPIO);
+
+	if (status != XST_SUCCESS) {
+		xil_printf("Error: FFT GPIO initialization failed!\r\n");
+		return;
+	}
+
+	// Configure the DMAs for the audio mixer.
+	status = setupDma(&axiDmaRecord, DEVICE_ID_DMA_RECORDED);
+	if (status != XST_SUCCESS) {
+		xil_printf("Error: Mixer (Record) DMA initialization failed!\r\n");
+		return;
+	}
+	status = setupDma(&axiDmaRx, DEVICE_ID_DMA_MIX);
+	if (status != XST_SUCCESS) {
+		xil_printf("Error: Mixer (Mix) DMA initialization failed!\r\n");
+		return;
+	}
+	status = setupDma(&axiDmaStore, DEVICE_ID_DMA_STORED);
+	if (status != XST_SUCCESS) {
+		xil_printf("Error: Mixer (Store) DMA initialization failed!\r\n");
+		return;
+	}
+
 	XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, 0);
 	XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, 0);
 
@@ -109,8 +143,8 @@ void audioDriver(){
 			TxBufferWindowedPtr[index] = temp;
 		}
 
-		XGpio_FftConfig();
-		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA_FFT, TxBufferWindowedPtr, MxBufferPtr);
+		FftConfigForward();
+		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA_FFT, TxBufferWindowedPtr, MxBufferPtr, &axiDmaFft);
 
 		if (status != XST_SUCCESS) {
 			xil_printf("XAxiDma_SimplePoll Example Failed\r\n");
@@ -122,8 +156,8 @@ void audioDriver(){
 
 		// want to convert data back so we send it through IFFT
 
-		XGpio_IFftConfig();
-		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA_FFT, MxBufferPtr, Rx2BufferPtr);
+		FftConfigInverse();
+		status = XAxiDma_FftDataTransfer(DEVICE_ID_DMA_FFT, MxBufferPtr, Rx2BufferPtr, &axiDmaFft);
 
 #ifdef LUI_DEBUG
 		if (status != XST_SUCCESS) {
@@ -157,7 +191,7 @@ void audioDriver(){
 				 if ((*playBackCounter) < (STORED_SOUND_ANOTHER_ONE_LENGTH)){
 					 // send recordPlayback interrupt
 					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, *psRightPushButtonEnabled);
-					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_STORED, (u32*)STORED_SOUND_ANOTHER_ONE+(*playBackCounter), RxMixedBufferPtr, axiDmaStore, 0);
+					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_STORED, (u32*)STORED_SOUND_ANOTHER_ONE+(*playBackCounter), RxMixedBufferPtr, &axiDmaStore, 0);
 					(*playBackCounter)+=512;
 				 }
 				 else {
@@ -172,7 +206,7 @@ void audioDriver(){
 				 if ((*playBackCounter) < (STORED_SOUND_AIRHORN_LENGTH)){
 					 // send recordPlayback interrupt
 					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, *psRightPushButtonEnabled);
-					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_STORED, (u32*)STORED_SOUND_AIRHORN+(*playBackCounter), RxMixedBufferPtr, axiDmaStore, 0);
+					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_STORED, (u32*)STORED_SOUND_AIRHORN+(*playBackCounter), RxMixedBufferPtr, &axiDmaStore, 0);
 					(*playBackCounter)+=512;
 				 }
 				 else {
@@ -191,7 +225,7 @@ void audioDriver(){
 					 if ((*playBackCounter) < ((*record2Counter)-512)){
 						 // send recordPlayback interrupt
 						 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
-					    status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, Rec2BufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
+					    status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, Rec2BufferPtr+(*playBackCounter), RxMixedBufferPtr, &axiDmaRecord, 0);
 						(*playBackCounter)+=512;
 					 }
 					 else {
@@ -206,7 +240,7 @@ void audioDriver(){
 					 if ((*playBackCounter) < ((*recordCounter)-512)){
 						 // send recordPlayback interrupt
 						 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
-							 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
+							 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, &axiDmaRecord, 0);
 						(*playBackCounter)+=512;
 					 }
 					 else {
@@ -221,7 +255,7 @@ void audioDriver(){
 				 if ((*playBackCounter) < ((*record2Counter)-512)){
 					 // send recordPlayback interrupt
 					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
-					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, Rec2BufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
+					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, Rec2BufferPtr+(*playBackCounter), RxMixedBufferPtr, &axiDmaRecord, 0);
 					(*playBackCounter)+=512;
 				 }
 				 else {
@@ -235,7 +269,7 @@ void audioDriver(){
 				 if ((*playBackCounter) < ((*recordCounter)-512)){
 					 // send recordPlayback interrupt
 					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
-					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
+					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, &axiDmaRecord, 0);
 					(*playBackCounter)+=512;
 				 }
 				 else {
@@ -279,7 +313,7 @@ void sendToMixer(volatile u64* toSendBuffer, volatile u32* recieveBuffer){
 		RxToMixBufferPtr[i-512] = ((tempRight << 16) | (tempLeft & 0xFFFF));
 	}
 	// send data to HW block through DMA and get it back
-	XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_MIX, RxToMixBufferPtr, recieveBuffer, axiDmaRx, 1);
+	XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_MIX, RxToMixBufferPtr, recieveBuffer, &axiDmaRx, 1);
 }
 
 // Receives data from line in.
@@ -393,29 +427,29 @@ void adjustPitch() {
 			// for positive data shift to the RIGHT
 			// for negative data shift to the LEFT
 			// Original
-			for (int i=0; i<255 - pitchVal;i++){
-				MxBufferPtr[256-i] = MxBufferPtr[256-(i+pitchVal+1)];
-			}
-			for (int i=0; i<254 - pitchVal; i++) {
-				MxBufferPtr[511-(254-i)] = MxBufferPtr[511-(254-i-pitchVal)];
-			}
-			for (int j=0; j<pitchVal;j++){
-				MxBufferPtr[j+1] = 0;
-			}
-			for (int j=0; j<pitchVal;j++) {
-				MxBufferPtr[511-j]=0;
-			}
+//			for (int i=0; i<255 - pitchVal;i++){
+//				MxBufferPtr[256-i] = MxBufferPtr[256-(i+pitchVal+1)];
+//			}
+//			for (int i=0; i<254 - pitchVal; i++) {
+//				MxBufferPtr[511-(254-i)] = MxBufferPtr[511-(254-i-pitchVal)];
+//			}
+//			for (int j=0; j<pitchVal;j++){
+//				MxBufferPtr[j+1] = 0;
+//			}
+//			for (int j=0; j<pitchVal;j++) {
+//				MxBufferPtr[511-j]=0;
+//			}
 
 			// Experimental - Not working.
-//			for (int i=128; i>=0; i--){
-//				MxBufferPtr[2*i] = MxBufferPtr[i];
-//				MxBufferPtr[511-2*i] = MxBufferPtr[511-i];
-//			}
-//			for (int i=0; i<128; i++) {
-//				MxBufferPtr[1+2*i] = 0;
-//				MxBufferPtr[511-1-2*i] = 0;
-//
-//			}
+			for (int i=256; i>=0; i--){
+				MxBufferPtr[2*i] = MxBufferPtr[i];
+				MxBufferPtr[1023-2*i] = MxBufferPtr[1023-i];
+			}
+			for (int i=0; i<256; i++) {
+				MxBufferPtr[1+2*i] = 0;
+				MxBufferPtr[1023-1-2*i] = 0;
+
+			}
 
 #endif
 
@@ -436,25 +470,25 @@ void adjustPitch() {
 			int pitchValPositive = -pitchVal;
 #ifdef MIRROR_FFT
 // Original
-			for (int i=0; i<255 - pitchValPositive;i++){
-				MxBufferPtr[i] = MxBufferPtr[i+pitchValPositive];
-				MxBufferPtr[511-i] = MxBufferPtr[511-(i+pitchValPositive)];
-			}
-			for (int j=0;j<pitchValPositive;j++){
-
-				MxBufferPtr[255-j] = 0;
-				MxBufferPtr[256+j] = 0;
-			}
+//			for (int i=0; i<255 - pitchValPositive;i++){
+//				MxBufferPtr[i] = MxBufferPtr[i+pitchValPositive];
+//				MxBufferPtr[511-i] = MxBufferPtr[511-(i+pitchValPositive)];
+//			}
+//			for (int j=0;j<pitchValPositive;j++){
+//
+//				MxBufferPtr[255-j] = 0;
+//				MxBufferPtr[256+j] = 0;
+//			}
 
 // Experimental - not working.
-//			for (int i=8; i>=0; i--){
-//				MxBufferPtr[255-240-2*i] = MxBufferPtr[255-i];
-//				MxBufferPtr[256+240+2*i] = MxBufferPtr[256+i];
-//			}
-//			for (int i=0; i<8; i++) {
-//				//MxBufferPtr[255-240-1-2*i] = 0;
-//				//MxBufferPtr[256+240+1+2*i] = 0;
-//			}
+			for (int i=256; i>=0; i--){
+				MxBufferPtr[511-2*i] = MxBufferPtr[511-i];
+				MxBufferPtr[512+2*i] = MxBufferPtr[512+i];
+			}
+			for (int i=0; i<256; i++) {
+				MxBufferPtr[511-1-2*i] = 0;
+				MxBufferPtr[512+1+2*i] = 0;
+			}
 #endif
 
 #ifndef MIRROR_FFT
@@ -490,8 +524,8 @@ void equalize(){
 		// want to amplify LOW frequency sounds
 		if (*equalizePart == 1){
 			// for 512 point FFT we define
-			// low frequencies in bins 1 to 5
-			for (int i=0;i<5;i++) {
+			// low frequencies in bins 1 to 10
+			for (int i=0;i<10;i++) {
 				rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
 				rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
 				lChImag = (MxBufferPtr[i] & 0xFFFF0000) >> 16;
@@ -529,10 +563,10 @@ void equalize(){
 				// but back in MxBuf to be sent to IFFT
 				MxBufferPtr[i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
 
-				rChImag = (MxBufferPtr[511-i] & 0xFFFF000000000000) >> 48;
-				rChReal = (MxBufferPtr[511-i] & 0xFFFF00000000) >> 32;
-				lChImag = (MxBufferPtr[511-i] & 0xFFFF0000) >> 16;
-				lChReal = MxBufferPtr[511-i] & 0xFFFF;
+				rChImag = (MxBufferPtr[1023-i] & 0xFFFF000000000000) >> 48;
+				rChReal = (MxBufferPtr[1023-i] & 0xFFFF00000000) >> 32;
+				lChImag = (MxBufferPtr[1023-i] & 0xFFFF0000) >> 16;
+				lChReal = MxBufferPtr[1023-i] & 0xFFFF;
 
 
 
@@ -563,13 +597,13 @@ void equalize(){
 				rChImag = rChMag * sin(rChPhase);
 
 				// but back in MxBuf to be sent to IFFT
-				MxBufferPtr[511-i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
+				MxBufferPtr[1023-i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
 
 			}
 		}
 		// want to amplify MID frequency sounds
 		else if(*equalizePart == 2){
-			for (int i=20;i<80;i++) {
+			for (int i=40;i<160;i++) {
 				rChImag = (MxBufferPtr[i] & 0xFFFF000000000000) >> 48;
 				rChReal = (MxBufferPtr[i] & 0xFFFF00000000) >> 32;
 				lChImag = (MxBufferPtr[i] & 0xFFFF0000) >> 16;
@@ -607,10 +641,10 @@ void equalize(){
 				// but back in MxBuf to be sent to IFFT
 				MxBufferPtr[i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
 
-				rChImag = (MxBufferPtr[511-i] & 0xFFFF000000000000) >> 48;
-				rChReal = (MxBufferPtr[511-i] & 0xFFFF00000000) >> 32;
-				lChImag = (MxBufferPtr[511-i] & 0xFFFF0000) >> 16;
-				lChReal = MxBufferPtr[511-i] & 0xFFFF;
+				rChImag = (MxBufferPtr[1023-i] & 0xFFFF000000000000) >> 48;
+				rChReal = (MxBufferPtr[1023-i] & 0xFFFF00000000) >> 32;
+				lChImag = (MxBufferPtr[1023-i] & 0xFFFF0000) >> 16;
+				lChReal = MxBufferPtr[1023-i] & 0xFFFF;
 
 
 
@@ -640,7 +674,7 @@ void equalize(){
 				rChImag = rChMag * sin(rChPhase);
 
 				// but back in MxBuf to be sent to IFFT
-				MxBufferPtr[511-i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
+				MxBufferPtr[1023-i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
 
 			}
 
@@ -685,10 +719,10 @@ void equalize(){
 				// but back in MxBuf to be sent to IFFT
 				MxBufferPtr[i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
 
-				rChImag = (MxBufferPtr[511-i] & 0xFFFF000000000000) >> 48;
-				rChReal = (MxBufferPtr[511-i] & 0xFFFF00000000) >> 32;
-				lChImag = (MxBufferPtr[511-i] & 0xFFFF0000) >> 16;
-				lChReal = MxBufferPtr[511-i] & 0xFFFF;
+				rChImag = (MxBufferPtr[1023-i] & 0xFFFF000000000000) >> 48;
+				rChReal = (MxBufferPtr[1023-i] & 0xFFFF00000000) >> 32;
+				lChImag = (MxBufferPtr[1023-i] & 0xFFFF0000) >> 16;
+				lChReal = MxBufferPtr[1023-i] & 0xFFFF;
 
 
 
@@ -764,10 +798,10 @@ void equalize(){
 				// but back in MxBuf to be sent to IFFT
 				MxBufferPtr[i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
 
-				rChImag = (MxBufferPtr[511-i] & 0xFFFF000000000000) >> 48;
-				rChReal = (MxBufferPtr[511-i] & 0xFFFF00000000) >> 32;
-				lChImag = (MxBufferPtr[511-i] & 0xFFFF0000) >> 16;
-				lChReal = MxBufferPtr[511-i] & 0xFFFF;
+				rChImag = (MxBufferPtr[1023-i] & 0xFFFF000000000000) >> 48;
+				rChReal = (MxBufferPtr[1023-i] & 0xFFFF00000000) >> 32;
+				lChImag = (MxBufferPtr[1023-i] & 0xFFFF0000) >> 16;
+				lChReal = MxBufferPtr[1023-i] & 0xFFFF;
 
 
 
@@ -798,7 +832,7 @@ void equalize(){
 				rChImag = rChMag * sin(rChPhase);
 
 				// but back in MxBuf to be sent to IFFT
-				MxBufferPtr[511-i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
+				MxBufferPtr[1023-i] = ((((uint64_t)rChImag) << 48) | (((uint64_t)rChReal) << 32) | (((uint64_t)lChImag) << 16) | (uint64_t)(lChReal));
 			}
 
 		} // ends if condition for which part to equalize
