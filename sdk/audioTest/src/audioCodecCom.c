@@ -86,25 +86,25 @@ void audioDriver(){
 	// Loop on audio
 	while (1) {
 
-		// Shift 256 samples over before reading 256 in the next iteration.
-		for (int index = 0; index < 256; index++) { // For 512pt 2. Window Overlap, except using Dan's summing suggestion.
-			TxBufferPtr[index] = TxBufferPtr[256+index];
+		// Shift 512 samples over before reading 512 in the next iteration.
+		for (int index = 0; index < 512; index++) { // For 1024pt 2. Window Overlap, except using Dan's summing suggestion.
+			TxBufferPtr[index] = TxBufferPtr[512+index];
 		}
 
 
 		// read in audio data from ADC FIFO
-		// Get 256 samples per iteration.
-		dataIn(256, TxBufferPtr, 256);		// For 512pt 2. Window Overlap, except using Dan's summing suggestion.
+		// Get 512 samples per iteration.
+		dataIn(512, TxBufferPtr, 512);		// For 512pt 2. Window Overlap, except using Dan's summing suggestion.
 
 
 		// Apply Hanning Window Overlap.
 		// 0x0000RRRR0000LLLL
-		for (int index = 0; index < 512; index++) {		// For 512pt FFT
+		for (int index = 0; index < 1024; index++) {		// For 512pt FFT
 			u64 temp = TxBufferPtr[index];
 			s16 tempLeft = (s16)temp;
 			s16 tempRight = (s16)(temp >> 32);
-			tempRight = (float)tempRight * hanning512[index];
-			tempLeft = (float)tempLeft * hanning512[index];
+			tempRight = (float)tempRight * hanning1024[index];
+			tempLeft = (float)tempLeft * hanning1024[index];
 			temp = (((u64)tempRight) << 32) | ((u64) tempLeft & 0xFFFF);
 			TxBufferWindowedPtr[index] = temp;
 		}
@@ -135,14 +135,11 @@ void audioDriver(){
 		shiftBits(Rx2BufferPtr, Rx2ShiftBufferPtr);
 
 		// Sum bits
-		for (int index = 0; index < 256; index++) {
-			//s16 tempRight = (s16)(RxShiftBufferPtr[256+index] >> 32) + (s16)(Rx2ShiftBufferPtr[index] >> 32);
-			//s16 tempLeft = (s16)(RxShiftBufferPtr[256+index]) + (s16)(Rx2ShiftBufferPtr[index]);
+		for (int index = 0; index < 512; index++) {
+			s16 tempRight = ((s16)(RxShiftBufferPtr[512+index] >> 32) & 0xFFFF) + ((s16)(Rx2ShiftBufferPtr[index] >> 32) & 0xFFFF);
+			s16 tempLeft = (s16)(RxShiftBufferPtr[512+index] & 0xFFFF) + (s16)(Rx2ShiftBufferPtr[index] & 0xFFFF);
 
-			RxShiftBufferPtr[256+index] += Rx2ShiftBufferPtr[index]; // TODO sum each part seperately
-
-			//RxShiftBufferPtr[256+index] = ((u64)(tempRight) << 32) | (u64)tempLeft;
-//			RxToMixBufferPtr[index] = ((RxShiftBufferPtr[256+index] & 0xFFFF) | ((RxShiftBufferPtr[256+index] >> 16) & 0xFFFF0000));
+			RxShiftBufferPtr[512+index] = (((u64)tempRight & 0xFFFF) << 32) | ((tempLeft & 0xFFFF));
 		}
 
 		// drive both interrupts to 0 so ivana's hardware block doesn't die
@@ -161,7 +158,7 @@ void audioDriver(){
 					 // send recordPlayback interrupt
 					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, *psRightPushButtonEnabled);
 					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_STORED, (u32*)STORED_SOUND_ANOTHER_ONE+(*playBackCounter), RxMixedBufferPtr, axiDmaStore, 0);
-					(*playBackCounter)+=256;
+					(*playBackCounter)+=512;
 				 }
 				 else {
 					 *playBackCounter = 0;
@@ -176,7 +173,7 @@ void audioDriver(){
 					 // send recordPlayback interrupt
 					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 2, *psRightPushButtonEnabled);
 					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_STORED, (u32*)STORED_SOUND_AIRHORN+(*playBackCounter), RxMixedBufferPtr, axiDmaStore, 0);
-					(*playBackCounter)+=256;
+					(*playBackCounter)+=512;
 				 }
 				 else {
 					 *playBackCounter = 0;
@@ -191,11 +188,11 @@ void audioDriver(){
 				// need to determine which sound to play
 				// to play recorded sound #2
 				if (*recordSound2 == 1){
-					 if ((*playBackCounter) < ((*record2Counter)-256)){
+					 if ((*playBackCounter) < ((*record2Counter)-512)){
 						 // send recordPlayback interrupt
 						 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
 					    status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, Rec2BufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
-						(*playBackCounter)+=256;
+						(*playBackCounter)+=512;
 					 }
 					 else {
 					 		*playBackCounter = 0;
@@ -206,11 +203,11 @@ void audioDriver(){
 				}
 				// to play recorded sound #1
 				else {
-					 if ((*playBackCounter) < ((*recordCounter)-256)){
+					 if ((*playBackCounter) < ((*recordCounter)-512)){
 						 // send recordPlayback interrupt
 						 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
 							 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
-						(*playBackCounter)+=256;
+						(*playBackCounter)+=512;
 					 }
 					 else {
 					 		*playBackCounter = 0;
@@ -221,11 +218,11 @@ void audioDriver(){
 			}
 
 			else if (*recordSound2 == 1){
-				 if ((*playBackCounter) < ((*record2Counter)-256)){
+				 if ((*playBackCounter) < ((*record2Counter)-512)){
 					 // send recordPlayback interrupt
 					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
 					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, Rec2BufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
-					(*playBackCounter)+=256;
+					(*playBackCounter)+=512;
 				 }
 				 else {
 					 *playBackCounter = 0;
@@ -235,11 +232,11 @@ void audioDriver(){
 			}
 
 			else {
-				 if ((*playBackCounter) < ((*recordCounter)-256)){
+				 if ((*playBackCounter) < ((*recordCounter)-512)){
 					 // send recordPlayback interrupt
 					 XGpio_DiscreteWrite(&gpioPlaybackInterrupt, 1, *psRightPushButtonEnabled);
 					 status = XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_RECORDED, RecBufferPtr+(*playBackCounter), RxMixedBufferPtr, axiDmaRecord, 0);
-					(*playBackCounter)+=256;
+					(*playBackCounter)+=512;
 				 }
 				 else {
 					 *playBackCounter = 0;
@@ -251,18 +248,18 @@ void audioDriver(){
 
 		sendToMixer(RxShiftBufferPtr, RxMixedBufferPtr);
 
-		// Send last 256 samples
+		// Send last 512 samples
 		if (bufferedSamples <= 24000) {
-			dataOut(256, RxMixedBufferPtr, 0, true);	// For 512pt 2. Window Overlap, except with Dan's summing suggestion
-			bufferedSamples += 256;
+			dataOut(512, RxMixedBufferPtr, 0, true);	// For 1024pt 2. Window Overlap, except with Dan's summing suggestion
+			bufferedSamples += 512;
 		}
 		else {
-			dataOut(256, RxMixedBufferPtr, 0, false);	// For 512pt 2. Window Overlap, except with Dan's summing suggestion
+			dataOut(512, RxMixedBufferPtr, 0, false);	// For 1024pt 2. Window Overlap, except with Dan's summing suggestion
 		}
 
 
 		// Move Rx2Buffer to RxBuffer
-		for (int index = 0; index < 512; index++) {
+		for (int index = 0; index < 1024; index++) {
 			RxShiftBufferPtr[index] = Rx2ShiftBufferPtr[index];
 		}
 
@@ -276,10 +273,10 @@ void sendToMixer(volatile u64* toSendBuffer, volatile u32* recieveBuffer){
 	u32 tempLeft = 0;
 	u32 tempRight = 0;
 
-	for (int i=256; i<512; i++){
+	for (int i=512; i<1024; i++){
 		tempRight = toSendBuffer[i]>>32;
 		tempLeft = toSendBuffer[i];
-		RxToMixBufferPtr[i-256] = ((tempRight << 16) | (tempLeft & 0xFFFF));
+		RxToMixBufferPtr[i-512] = ((tempRight << 16) | (tempLeft & 0xFFFF));
 	}
 	// send data to HW block through DMA and get it back
 	XAxiDma_MixerDataTransfer(DEVICE_ID_DMA_MIX, RxToMixBufferPtr, recieveBuffer, axiDmaRx, 1);
