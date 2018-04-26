@@ -13,10 +13,10 @@ int setUpFftGpio(u16 DeviceId);
 // Configuration functions to adjust the AXI-S FFT core.
 
 // This function configures the FFT for time-to-frequency domain transformation.
-int FftConfigForward();
+int fftConfigForward();
 
 // This function configures the FFT for frequency-to-time domain transformation.
-int FftConfigInverse();
+int fftConfigInverse();
 
 
 // This function prepares the sample data of the IFFT output data to be sent back to the audio codec.

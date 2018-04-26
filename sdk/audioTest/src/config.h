@@ -15,6 +15,9 @@
 // Turn the following on to debug with the UART console.  Used for interrupts.
 //#define LUI_DEBUG
 
+// Set the FFT size here.
+#define LUI_FFT_SIZE		2048
+#define LUI_FFT_SIZE_HALF	LUI_FFT_SIZE/2
 
 
 #endif /* SRC_CONFIG_H_ */

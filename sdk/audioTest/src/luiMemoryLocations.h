@@ -26,6 +26,7 @@
 #define DEVICE_ID_DMA_STORED            XPAR_AXI_DMA_MIXER_STORED_SOUNDS_DEVICE_ID
 #define DEVICE_ID_TIMER					XPAR_PS7_SCUTIMER_0_DEVICE_ID
 
+// TODO Make these relative to each other.
 #define LUI_DDR_BASE_ADDR				(XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x700000) // 0x800000
 #define LUI_MEM_SWITCHES 				(LUI_DDR_BASE_ADDR + 0x00)
 #define LUI_MEM_PS_PUSHBUTTON_LEFT		(LUI_DDR_BASE_ADDR + 0x04)
@@ -45,28 +46,33 @@
 #define LOOPBACK_ENABLED				(LUI_DDR_BASE_ADDR + 0x3C)
 #define RECORD2_COUNTER 				(LUI_DDR_BASE_ADDR + 0x40)
 #define RECORD2_ENABLED 				(LUI_DDR_BASE_ADDR + 0x44)
-#define PS_INTERRUPT_CONTROLLER			(LUI_DDR_BASE_ADDR + 0x48)
+#define PS_INTERRUPT_CONTROLLER			(LUI_DDR_BASE_ADDR + 0x48) // Size: 12 bytes.
+#define PS_TIMER						(LUI_DDR_BASE_ADDR + 0x78) // Size: 16 bytes.
 
 
-//defines for memory locations to store audio data
+// Memory location defines for where to store audio data
+#define LUI_BUFFER_SIZE_32B				(LUI_FFT_SIZE * 4)						// Size: FFT_SIZE samples * 4 bytes per sample (32 bits)
+#define LUI_BUFFER_SIZE_64B				(LUI_FFT_SIZE * 8)						// Size: FFT_SIZE samples * 8 bytes per sample (64 bits)
+#define LUI_BUFFER_SIZE_REC				(10 * 48000 * 4)						// Size: 10 seconds * 48k samples per second * 4 bytes per sample
+
 #define DDR_BASE                  		XPAR_PS7_DDR_0_S_AXI_BASEADDR
 #define CIRCULAR_BUFFER_BASE			(DDR_BASE + 0x00600000) // 0x00700000
-#define TX_BUFFER_BASE             		(DDR_BASE + 0x00100000)
-#define TX_BUFFER_WINDOWED_BASE         (DDR_BASE + 0x00103000)
-#define MX_BUFFER_BASE            		(DDR_BASE + 0x00106000)
-#define MX_SHIFT_BUFFER_BASE            (DDR_BASE + 0x00109000)
-#define RX_BUFFER_BASE            		(DDR_BASE + 0x001C0000)
-#define RX_2_BUFFER_BASE            	(DDR_BASE + 0x00200000)
-#define RX_SHIFT_BUFFER_BASE      		(DDR_BASE + 0x00203000)
-#define RX_2_SHIFT_BUFFER_BASE      	(DDR_BASE + 0x00206000)
-#define REC_BUFFER_BASE      	        (DDR_BASE + 0x00209000) // this will need 1.92MB of space for a 10 second sample
-#define REC_2_BUFFER_BASE               (DDR_BASE + 0x00800000) // another recorded sound cause WHY NOT
-#define RX_MIXED_BUFFER_BASE            (DDR_BASE + 0x00400000)
-#define RX_TOMIX_BUFFER_BASE            (DDR_BASE + 0x00400400)
+#define TX_BUFFER_BASE             		(DDR_BASE + 0x00100000)								// Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00100000
+#define TX_BUFFER_WINDOWED_BASE         (TX_BUFFER_BASE          + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00104000
+#define MX_BUFFER_BASE            		(TX_BUFFER_WINDOWED_BASE + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00108000
+#define MX_SHIFT_BUFFER_BASE            (MX_BUFFER_BASE          + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x0010C000
+#define RX_BUFFER_BASE            		(MX_SHIFT_BUFFER_BASE    + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00110000
+#define RX_2_BUFFER_BASE            	(RX_BUFFER_BASE          + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00114000
+#define RX_SHIFT_BUFFER_BASE      		(RX_2_BUFFER_BASE        + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00118000
+#define RX_2_SHIFT_BUFFER_BASE      	(RX_SHIFT_BUFFER_BASE    + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x0011C000
+#define REC_BUFFER_BASE      	        (RX_2_SHIFT_BUFFER_BASE  + LUI_BUFFER_SIZE_64B)     // Size: 10 seconds * 48k samples per second * 4 bytes per sample = 0x1D4C00
+#define REC_2_BUFFER_BASE               (REC_BUFFER_BASE		 + LUI_BUFFER_SIZE_REC)     // Another recorded sound cause WHY NOT
+#define RX_MIXED_BUFFER_BASE            (REC_2_BUFFER_BASE       + LUI_BUFFER_SIZE_REC)		// Size: 1024 samples * 4bytes
+#define RX_TOMIX_BUFFER_BASE            (RX_MIXED_BUFFER_BASE    + LUI_BUFFER_SIZE_32B)
 #define STORED_SOUND_ANOTHER_ONE		(DDR_BASE + 0x00404000) // 0x00504000, size (bytes): 174184
 #define STORED_SOUND_AIRHORN			(DDR_BASE + 0x00430000) // 0x00530000, size (bytes): 577652
 
-#define STORED_SOUND_ANOTHER_ONE_LENGTH	(43520)				// Round down, align to 256 sample borders.
-#define STORED_SOUND_AIRHORN_LENGTH		(144384)				// Round down, align to 256 sample borders.
+#define STORED_SOUND_ANOTHER_ONE_LENGTH	(43008)					// Round down, align to 1024 sample borders.
+#define STORED_SOUND_AIRHORN_LENGTH		(144384)				// Round down, align to 1024 sample borders.
 #endif /* SRC_LUIMEMORYLOCATIONS_H_ */
 

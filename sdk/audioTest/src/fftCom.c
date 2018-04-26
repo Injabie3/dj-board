@@ -7,10 +7,12 @@
 
 static XGpio gpioFftConfig;					// AXI GPIO object for the FFT configuration.
 
-#define FFT_1024
+//#define FFT_1024
+#define FFT_2048
 
 const u64 scalingSchedule512 = 0b010101010100000000;
 const u32 scalingSchedule1024 = 0b1011000000;
+const u32 scalingSchedule2048 = 0b101010000000;
 
 // This function prepares the sample data of the IFFT output data to be sent back to the audio codec.
 // Parameters:
@@ -19,22 +21,21 @@ const u32 scalingSchedule1024 = 0b1011000000;
 void shiftBits(volatile u64* bufferToShift, volatile u64* bufferToStoreIn) {
 
 	// Some easy constants to adjust.
-	const uint POINT_SIZE = 1024;
 	const uint BITS_TO_SHIFT = 0;
 
-	u64 temp[POINT_SIZE];
+	u64 tempBuffer[2048];
 
-	for (int i=0; i < POINT_SIZE; i++) {
-		temp[i] = (bufferToShift[i] << BITS_TO_SHIFT) & 0xFFFF; // the LSB part
-		temp[i] = (((bufferToShift[i] & 0xFFFF0000) << BITS_TO_SHIFT) & 0xFFFF0000) | temp[i]; // concatenating as we go
-		temp[i] = (((bufferToShift[i] & 0xFFFF00000000) << BITS_TO_SHIFT) & 0xFFFF00000000) | temp[i];
+	for (int i=0; i < LUI_FFT_SIZE; i++) {
+		tempBuffer[i] = (bufferToShift[i] << BITS_TO_SHIFT) & 0xFFFF; // the LSB part
+		tempBuffer[i] = (((bufferToShift[i] & 0xFFFF0000) << BITS_TO_SHIFT) & 0xFFFF0000) | tempBuffer[i]; // concatenating as we go
+		tempBuffer[i] = (((bufferToShift[i] & 0xFFFF00000000) << BITS_TO_SHIFT) & 0xFFFF00000000) | tempBuffer[i];
 		//for the last one do we need to & it again ? i don't think so lol
-		temp[i] = ((bufferToShift[i] & 0xFFFF000000000000) << BITS_TO_SHIFT) | temp[i];
+		tempBuffer[i] = ((bufferToShift[i] & 0xFFFF000000000000) << BITS_TO_SHIFT) | tempBuffer[i];
 
 		if (i==0)
-			bufferToStoreIn[i] = temp[i];
+			bufferToStoreIn[i] = tempBuffer[i];
 		else {
-			bufferToStoreIn[POINT_SIZE-i] = temp[i];
+			bufferToStoreIn[LUI_FFT_SIZE-i] = tempBuffer[i];
 		}
 	}
 
@@ -86,17 +87,17 @@ int XAxiDma_FftDataTransfer(u16 DeviceId, volatile u64* inputBuffer, volatile u6
 	int status;
 
 	// flush the cache
-	Xil_DCacheFlushRange((UINTPTR)inputBuffer, 0x2000);
-	Xil_DCacheFlushRange((UINTPTR)outputBuffer, 0x2000);
+	Xil_DCacheFlushRange((UINTPTR)inputBuffer, LUI_FFT_SIZE*8); // FFT_point size * 8 bytes since we have 64 bits.
+	Xil_DCacheFlushRange((UINTPTR)outputBuffer, LUI_FFT_SIZE*8);
 
 	/**********************Start data transfer with FFT***************************/
-	status = XAxiDma_SimpleTransfer(axiDma, (UINTPTR)outputBuffer, 0x2000, XAXIDMA_DEVICE_TO_DMA);
+	status = XAxiDma_SimpleTransfer(axiDma, (UINTPTR)outputBuffer, LUI_FFT_SIZE*8, XAXIDMA_DEVICE_TO_DMA);
 
 	if (status != XST_SUCCESS) {
 		return XST_FAILURE;
 	}
 
-	status = XAxiDma_SimpleTransfer(axiDma, (UINTPTR)inputBuffer, 0x2000, XAXIDMA_DMA_TO_DEVICE);
+	status = XAxiDma_SimpleTransfer(axiDma, (UINTPTR)inputBuffer, LUI_FFT_SIZE*8, XAXIDMA_DMA_TO_DEVICE);
 
 	if (status != XST_SUCCESS) {
 		return XST_FAILURE;
@@ -116,21 +117,21 @@ int XAxiDma_MixerDataTransfer(u16 DeviceId, volatile u32* inputBuffer, volatile 
 	int status;
 
 	// flush the cache
-	Xil_DCacheFlushRange((UINTPTR)inputBuffer, 0x800);
+	Xil_DCacheFlushRange((UINTPTR)inputBuffer, LUI_FFT_SIZE/2*4); // Send half samples * 4 bytes since 32 bits.
 	if (bothDirection == 1) {
-		Xil_DCacheFlushRange((UINTPTR)outputBuffer, 0x800);
+		Xil_DCacheFlushRange((UINTPTR)outputBuffer, LUI_FFT_SIZE/2*4);
 	}
 
 	//
 	if (bothDirection == 1){
-		status = XAxiDma_SimpleTransfer(axiDma, (UINTPTR)outputBuffer, 0x800, XAXIDMA_DEVICE_TO_DMA);
+		status = XAxiDma_SimpleTransfer(axiDma, (UINTPTR)outputBuffer, LUI_FFT_SIZE/2*4, XAXIDMA_DEVICE_TO_DMA);
 
 		if (status != XST_SUCCESS) {
 			return XST_FAILURE;
 		}
 	}
 
-	status = XAxiDma_SimpleTransfer(axiDma, (UINTPTR)inputBuffer, 0x800, XAXIDMA_DMA_TO_DEVICE);
+	status = XAxiDma_SimpleTransfer(axiDma, (UINTPTR)inputBuffer, LUI_FFT_SIZE/2*4, XAXIDMA_DMA_TO_DEVICE);
 
 	if (status != XST_SUCCESS) {
 		return XST_FAILURE;
@@ -148,7 +149,7 @@ int XAxiDma_MixerDataTransfer(u16 DeviceId, volatile u32* inputBuffer, volatile 
 }
 
 // This function configures the FFT for time-to-frequency domain transformation.
-int FftConfigForward() {
+int fftConfigForward() {
 
 	/********************Configure the FFT***********************/
 	// configure forward FFT for each channel
@@ -169,11 +170,25 @@ int FftConfigForward() {
 	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
 	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b1);
 #endif // FFT_1024
+
+#ifdef FFT_2048
+	u32 configData = 0b11 | scalingSchedule2048 << 2 | scalingSchedule2048 << 14;
+	// Configuration:
+	// GPIO Channel 1:
+	// Bits 0, 1: 	Forward/Inverse for channel 0 and 1 respectively
+	// Bits 2-12: 	Scaling schedule for channel 0.
+	// Bits 13-22:	Scaling schedule for channel 1.
+	// GPIO Channel 2:
+	// Bit 1:		Valid signal.
+
+	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
+	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b1);
+#endif // FFT_2048
 	return 0;
 }
 
 // This function configures the FFT for frequency-to-time domain transformation.
-int FftConfigInverse() {
+int fftConfigInverse() {
 
 	/********************Configure the FFT***********************/
 	// configure forward FFT for each channel
@@ -193,5 +208,19 @@ int FftConfigInverse() {
 	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
 	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b1);
 #endif // FFT_1024
+
+#ifdef FFT_2048
+	u32 configData = 0b00 | scalingSchedule2048 << 2 | scalingSchedule2048 << 14;
+	// Configuration:
+	// GPIO Channel 1:
+	// Bits 0, 1: 	Forward/Inverse for channel 0 and 1 respectively
+	// Bits 2-12: 	Scaling schedule for channel 0.
+	// Bits 13-22:	Scaling schedule for channel 1.
+	// GPIO Channel 2:
+	// Bit 1:		Valid signal.
+
+	XGpio_DiscreteWrite(&gpioFftConfig, 1, configData);
+	XGpio_DiscreteWrite(&gpioFftConfig, 2, 0b1);
+#endif // FFT_2048
 	return 0;
 }

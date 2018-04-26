@@ -14,7 +14,6 @@
 #include "xgpiops.h"	// GPIO drivers, PS side.
 #include "xscutimer.h"	// Timer drivers, PS side.
 #include "xil_printf.h"
-//#include "xintc.h"	// AXI interrupt controller, if we use it.
 #include "xscugic.h"	// PS interrupt controller.
 #include "Xil_exception.h"
 #include "luiMemoryLocations.h"
@@ -382,7 +381,7 @@ void gpioPushButtonsInterruptHandler(void *CallbackRef) {
 			// TODO Check to see if the below is dangerous.
 			char buffer[50];
 			sprintf(buffer, "Echo adjusted. Currently at %02d.\n\r", *echoCounter);
-			print(&buffer);
+			print((char*)&buffer);
 		}
 	}
 	else {
