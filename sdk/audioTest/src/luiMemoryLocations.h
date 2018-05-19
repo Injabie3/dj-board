@@ -72,7 +72,7 @@
 #define STORED_SOUND_ANOTHER_ONE		(DDR_BASE + 0x00404000) // 0x00504000, size (bytes): 174184
 #define STORED_SOUND_AIRHORN			(DDR_BASE + 0x00430000) // 0x00530000, size (bytes): 577652
 
-#define STORED_SOUND_ANOTHER_ONE_LENGTH	(43008)					// Round down, align to 1024 sample borders.
-#define STORED_SOUND_AIRHORN_LENGTH		(144384)				// Round down, align to 1024 sample borders.
+#define STORED_SOUND_ANOTHER_ONE_LENGTH	(43008)					// Round down, align to 2048 sample borders.
+#define STORED_SOUND_AIRHORN_LENGTH		(143360)				// Round down, align to 2048 sample borders.
 #endif /* SRC_LUIMEMORYLOCATIONS_H_ */
 
