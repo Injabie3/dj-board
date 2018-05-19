@@ -23,7 +23,7 @@ void shiftBits(volatile u64* bufferToShift, volatile u64* bufferToStoreIn) {
 	// Some easy constants to adjust.
 	const uint BITS_TO_SHIFT = 0;
 
-	u64 tempBuffer[2048];
+	u64 tempBuffer[LUI_FFT_SIZE];
 
 	for (int i=0; i < LUI_FFT_SIZE; i++) {
 		tempBuffer[i] = (bufferToShift[i] << BITS_TO_SHIFT) & 0xFFFF; // the LSB part

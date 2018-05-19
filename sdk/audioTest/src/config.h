@@ -11,12 +11,13 @@
 // Change beat detection threshold
 //#define BEAT_DETECTION_SPEAKERS
 #define BEAT_DETECTION_HEADPHONES // Use this threshold for headphones, so volume doesn't have to be super loud.
+//#define BEAT_DETECTION_HEADPHONES_PIANO // Use this threshold for headphones, so volume doesn't have to be super loud.
 
 // Turn the following on to debug with the UART console.  Used for interrupts.
 //#define LUI_DEBUG
 
 // Set the FFT size here.
-#define LUI_FFT_SIZE		2048
+#define LUI_FFT_SIZE		4096
 #define LUI_FFT_SIZE_HALF	LUI_FFT_SIZE/2
 
 

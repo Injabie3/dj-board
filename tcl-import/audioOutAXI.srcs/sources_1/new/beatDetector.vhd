@@ -58,9 +58,9 @@ entity beatDetector is
         -- ############################
         -- # AXI-STREAM CONFIGURATION #
         -- ############################
-        -- Bits 40 downto 32:   Bin Number              (unsigned - 9 bits)
+        -- Bits 45 downto 32:   Bin Number              (unsigned - 13 bits)
         -- Bits 31 downto 0:    Magnitude Threshold     (unsigned - 32 bits)
-        S_config_tData:     in std_logic_vector(40 downto 0);
+        S_config_tData:     in std_logic_vector(44 downto 0);
         S_config_tValid:    in std_logic;
         
         -- ##############################
@@ -88,8 +88,8 @@ architecture behavioural of beatDetector is
     -- #############
     -- # REGISTERS #
     -- #############
-    signal counterReg:          unsigned(8 downto 0) := to_unsigned(0, 9); -- 2^9 is 512.  We could use 256 here.
-    signal binReg:              unsigned(8 downto 0) := to_unsigned(4, 9);
+    signal counterReg:          unsigned(12 downto 0) := to_unsigned(0, 13); -- 2^13 is 8192.  We could use 256 here.
+    signal binReg:              unsigned(12 downto 0) := to_unsigned(4, 13);
     signal tDataReg:            std_logic_vector(31 downto 0);
     signal magReg:              unsigned(31 downto 0);
     signal thresholdReg:        unsigned(31 downto 0);
@@ -175,7 +175,7 @@ begin
                 end if;
                 
                 if S_config_tValid ='1' then
-                    binReg          <= unsigned(S_config_tData(40 downto 32));
+                    binReg          <= unsigned(S_config_tData(44 downto 32));
                     thresholdReg    <= unsigned(S_config_tData(31 downto 0));
                 end if;
                 

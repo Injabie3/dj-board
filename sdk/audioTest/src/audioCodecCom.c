@@ -137,8 +137,8 @@ void audioDriver(){
 			u64 temp = TxBufferPtr[index];
 			s16 tempLeft = (s16)temp;
 			s16 tempRight = (s16)(temp >> 32);
-			tempRight = (float)tempRight * hanning2048[index];
-			tempLeft = (float)tempLeft * hanning2048[index];
+			tempRight = (float)tempRight * hanning[index];
+			tempLeft = (float)tempLeft * hanning[index];
 			temp = (((u64)tempRight) << 32) | ((u64) tempLeft & 0xFFFF);
 			TxBufferWindowedPtr[index] = temp;
 		}
@@ -443,11 +443,11 @@ void adjustPitch() {
 			// Experimental - Not working.
 			for (int i=512; i>=0; i--){
 				MxBufferPtr[2*i] = MxBufferPtr[i];
-				MxBufferPtr[2047-2*i] = MxBufferPtr[2047-i];
+				MxBufferPtr[4095-2*i] = MxBufferPtr[4095-i];
 			}
 			for (int i=0; i<512; i++) {
 				MxBufferPtr[1+2*i] = 0;
-				MxBufferPtr[2047-1-2*i] = 0;
+				MxBufferPtr[4095-1-2*i] = 0;
 
 			}
 
