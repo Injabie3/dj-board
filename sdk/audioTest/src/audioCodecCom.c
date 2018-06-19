@@ -440,14 +440,33 @@ void adjustPitch() {
 //				MxBufferPtr[511-j]=0;
 //			}
 
+//			for (int i=0; i<4096 - pitchVal;i++){
+//				MxBufferPtr[4096-i] = MxBufferPtr[4096-(i+pitchVal+1)];
+//			}
+//			for (int i=0; i<4095 - pitchVal; i++) {
+//				MxBufferPtr[8191-(4094-i)] = MxBufferPtr[8191-(4094-i-pitchVal)];
+//			}
+//			for (int j=0; j<pitchVal;j++){
+//				MxBufferPtr[j+1] = 0;
+//			}
+//			for (int j=0; j<pitchVal;j++) {
+//				MxBufferPtr[8191-j]=0;
+//			}
+
 			// Experimental - Not working.
-			for (int i=512; i>=0; i--){
-				MxBufferPtr[2*i] = MxBufferPtr[i];
-				MxBufferPtr[4095-2*i] = MxBufferPtr[4095-i];
+			for (int i=1024; i>=0; i--){
+				MxBufferPtr[(int)(2*i)] = MxBufferPtr[i];
+				//MxBufferPtr[(int)(1.75*i)] = MxBufferPtr[i];
+				//MxBufferPtr[(int)(1.5*i)] = MxBufferPtr[i];
+				//MxBufferPtr[(int)(1.25*i)] = MxBufferPtr[i];
+				MxBufferPtr[(int)(8191-2*i)] = MxBufferPtr[8191-i];
+				//MxBufferPtr[(int)(8191-1.75*i)] = MxBufferPtr[8191-i];
+				//MxBufferPtr[(int)(8191-1.5*i)] = MxBufferPtr[8191-i];
+				//MxBufferPtr[(int)(8191-1.25*i)] = MxBufferPtr[8191-i];
 			}
-			for (int i=0; i<512; i++) {
-				MxBufferPtr[1+2*i] = 0;
-				MxBufferPtr[4095-1-2*i] = 0;
+			for (int i=0; i<1024; i++) {
+				MxBufferPtr[(int)(1+2*i)] = 0;
+				MxBufferPtr[(int)(8191-1-2*i)] = 0;
 
 			}
 

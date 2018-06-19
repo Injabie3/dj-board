@@ -280,7 +280,7 @@ begin
     FIFO_OutDAC : DualClockFIFO
     generic map (
         DATA_WIDTH => 32,
-        ADDR_WIDTH => 11
+        ADDR_WIDTH => 13
     )
     port map (
         -- Reading port.
@@ -304,7 +304,7 @@ begin
     FIFO_InADC : DualClockFIFO
     generic map (
         DATA_WIDTH => 32,
-        ADDR_WIDTH => 11
+        ADDR_WIDTH => 13
     )
     port map (
         -- Reading port.

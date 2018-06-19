@@ -262,17 +262,17 @@ void setUpBeatDetection() {
 	#endif // BEAT_DETECTION_SPEAKERS
 
 	#ifdef BEAT_DETECTION_HEADPHONES
-    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x8000); // 2^15
-    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b10000000000000 | 0x3); // Valid and bin 1.
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 1, 0x2000); // 2^15
+    XGpio_DiscreteWrite(&gpioBeatDetector01, 2, 0b10000000000000 | 0x10); // Valid and bin 1.
 
-    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x8000); // 2^15
-    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b10000000000000 | 0x10); // Valid and bin 6.
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 1, 0x2000); // 2^15
+    XGpio_DiscreteWrite(&gpioBeatDetector02, 2, 0b10000000000000 | 0x30); // Valid and bin 6.
 
-    XGpio_DiscreteWrite(&gpioBeatDetector03, 1, 0x8000); // 2^13
-	XGpio_DiscreteWrite(&gpioBeatDetector03, 2, 0b10000000000000 | 0x20); // Valid and bin 12.
+    XGpio_DiscreteWrite(&gpioBeatDetector03, 1, 0x2000); // 2^13
+	XGpio_DiscreteWrite(&gpioBeatDetector03, 2, 0b10000000000000 | 0x50); // Valid and bin 12.
 
-	XGpio_DiscreteWrite(&gpioBeatDetector04, 1, 0x80000); // 2^13
-	XGpio_DiscreteWrite(&gpioBeatDetector04, 2, 0b10000000000000 | 0x30); // Valid and bin 18.
+	XGpio_DiscreteWrite(&gpioBeatDetector04, 1, 0x2000); // 2^13
+	XGpio_DiscreteWrite(&gpioBeatDetector04, 2, 0b10000000000000 | 0x70); // Valid and bin 18.
 
 	#endif // BEAT_DETECTION_HEADPHONES
 

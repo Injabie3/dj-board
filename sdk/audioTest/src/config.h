@@ -17,7 +17,7 @@
 //#define LUI_DEBUG
 
 // Set the FFT size here.
-#define LUI_FFT_SIZE		4096
+#define LUI_FFT_SIZE		8192
 #define LUI_FFT_SIZE_HALF	LUI_FFT_SIZE/2
 
 

@@ -1,7 +1,7 @@
 --Copyright 1986-2017 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2017.3 (win64) Build 2018833 Wed Oct  4 19:58:22 MDT 2017
---Date        : Sat May  5 21:20:53 2018
+--Date        : Sat Jun 16 23:54:39 2018
 --Host        : Lui-Ryan-New running 64-bit major release  (build 9200)
 --Command     : generate_target audioTest_wrapper.bd
 --Design      : audioTest_wrapper
@@ -111,22 +111,22 @@ architecture STRUCTURE of audioTest_wrapper is
     VGA_R : out STD_LOGIC_VECTOR ( 3 downto 0 );
     VGA_G : out STD_LOGIC_VECTOR ( 3 downto 0 );
     VGA_B : out STD_LOGIC_VECTOR ( 3 downto 0 );
-    LD7 : out STD_LOGIC;
-    LD0 : out STD_LOGIC;
-    JC1_P : out STD_LOGIC;
     JC4_N : out STD_LOGIC;
-    LD6 : out STD_LOGIC;
-    LD1 : out STD_LOGIC;
-    JC1_N : out STD_LOGIC;
+    JC1_P : out STD_LOGIC;
+    LD0 : out STD_LOGIC;
+    LD7 : out STD_LOGIC;
     JC4_P : out STD_LOGIC;
-    LD2 : out STD_LOGIC;
-    LD5 : out STD_LOGIC;
-    JC2_P : out STD_LOGIC;
+    JC1_N : out STD_LOGIC;
+    LD1 : out STD_LOGIC;
+    LD6 : out STD_LOGIC;
     JC3_N : out STD_LOGIC;
-    LD3 : out STD_LOGIC;
-    LD4 : out STD_LOGIC;
+    JC2_P : out STD_LOGIC;
+    LD5 : out STD_LOGIC;
+    LD2 : out STD_LOGIC;
+    JC3_P : out STD_LOGIC;
     JC2_N : out STD_LOGIC;
-    JC3_P : out STD_LOGIC
+    LD4 : out STD_LOGIC;
+    LD3 : out STD_LOGIC
   );
   end component audioTest;
 begin

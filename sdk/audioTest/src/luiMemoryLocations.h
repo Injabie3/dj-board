@@ -28,11 +28,11 @@
 
 // TODO Make these relative to each other.
 #define LUI_DDR_BASE_ADDR				(XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x700000) // 0x800000
-#define LUI_MEM_SWITCHES 				(LUI_DDR_BASE_ADDR + 0x00)
-#define LUI_MEM_PS_PUSHBUTTON_LEFT		(LUI_DDR_BASE_ADDR + 0x04)
-#define LUI_MEM_PS_PUSHBUTTON_RIGHT		(LUI_DDR_BASE_ADDR + 0x08)
-#define LUI_MEM_PL_PUSHBUTTONS			(LUI_DDR_BASE_ADDR + 0x0C)
-#define PITCH_CNTR_LOCATION				(LUI_DDR_BASE_ADDR + 0x10)
+#define LUI_MEM_SWITCHES 				(LUI_DDR_BASE_ADDR 				+ 0x0)
+#define LUI_MEM_PS_PUSHBUTTON_LEFT		(LUI_MEM_SWITCHES 				+ 0x4)
+#define LUI_MEM_PS_PUSHBUTTON_RIGHT		(LUI_MEM_PS_PUSHBUTTON_LEFT 	+ 0x4)
+#define LUI_MEM_PL_PUSHBUTTONS			(LUI_MEM_PS_PUSHBUTTON_RIGHT 	+ 0x4)
+#define PITCH_CNTR_LOCATION				(LUI_MEM_PL_PUSHBUTTONS 		+ 0x4)
 #define ECHO_CNTR_LOCATION				(LUI_DDR_BASE_ADDR + 0x14)
 #define EQUAL_CNTR_LOCATION   			(LUI_DDR_BASE_ADDR + 0x18)
 #define EQUAL_SEC_LOCATION    			(LUI_DDR_BASE_ADDR + 0x1C)
@@ -57,14 +57,14 @@
 
 #define DDR_BASE                  		XPAR_PS7_DDR_0_S_AXI_BASEADDR
 #define CIRCULAR_BUFFER_BASE			(DDR_BASE + 0x00600000) // 0x00700000
-#define TX_BUFFER_BASE             		(DDR_BASE + 0x00100000)								// Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00100000
-#define TX_BUFFER_WINDOWED_BASE         (TX_BUFFER_BASE          + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00104000
-#define MX_BUFFER_BASE            		(TX_BUFFER_WINDOWED_BASE + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00108000
-#define MX_SHIFT_BUFFER_BASE            (MX_BUFFER_BASE          + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x0010C000
-#define RX_BUFFER_BASE            		(MX_SHIFT_BUFFER_BASE    + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00110000
-#define RX_2_BUFFER_BASE            	(RX_BUFFER_BASE          + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00114000
-#define RX_SHIFT_BUFFER_BASE      		(RX_2_BUFFER_BASE        + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x00118000
-#define RX_2_SHIFT_BUFFER_BASE      	(RX_SHIFT_BUFFER_BASE    + LUI_BUFFER_SIZE_64B)     // Size: 2048 samples * 8 bytes per sample = 0x4000  | 0x0011C000
+#define TX_BUFFER_BASE             		(DDR_BASE + 0x00100000)
+#define TX_BUFFER_WINDOWED_BASE         (TX_BUFFER_BASE          + LUI_BUFFER_SIZE_64B)
+#define MX_BUFFER_BASE            		(TX_BUFFER_WINDOWED_BASE + LUI_BUFFER_SIZE_64B)
+#define MX_SHIFT_BUFFER_BASE            (MX_BUFFER_BASE          + LUI_BUFFER_SIZE_64B)
+#define RX_BUFFER_BASE            		(MX_SHIFT_BUFFER_BASE    + LUI_BUFFER_SIZE_64B)
+#define RX_2_BUFFER_BASE            	(RX_BUFFER_BASE          + LUI_BUFFER_SIZE_64B)
+#define RX_SHIFT_BUFFER_BASE      		(RX_2_BUFFER_BASE        + LUI_BUFFER_SIZE_64B)
+#define RX_2_SHIFT_BUFFER_BASE      	(RX_SHIFT_BUFFER_BASE    + LUI_BUFFER_SIZE_64B)
 #define REC_BUFFER_BASE      	        (RX_2_SHIFT_BUFFER_BASE  + LUI_BUFFER_SIZE_64B)     // Size: 10 seconds * 48k samples per second * 4 bytes per sample = 0x1D4C00
 #define REC_2_BUFFER_BASE               (REC_BUFFER_BASE		 + LUI_BUFFER_SIZE_REC)     // Another recorded sound cause WHY NOT
 #define RX_MIXED_BUFFER_BASE            (REC_2_BUFFER_BASE       + LUI_BUFFER_SIZE_REC)		// Size: 1024 samples * 4bytes
@@ -72,7 +72,7 @@
 #define STORED_SOUND_ANOTHER_ONE		(DDR_BASE + 0x00404000) // 0x00504000, size (bytes): 174184
 #define STORED_SOUND_AIRHORN			(DDR_BASE + 0x00430000) // 0x00530000, size (bytes): 577652
 
-#define STORED_SOUND_ANOTHER_ONE_LENGTH	(43008)					// Round down, align to 2048 sample borders.
-#define STORED_SOUND_AIRHORN_LENGTH		(143360)				// Round down, align to 2048 sample borders.
+#define STORED_SOUND_ANOTHER_ONE_LENGTH	(40960)					// Round down, align to 2048 sample borders.
+#define STORED_SOUND_AIRHORN_LENGTH		(136031)				// Round down, align to 2048 sample borders.
 #endif /* SRC_LUIMEMORYLOCATIONS_H_ */
 
