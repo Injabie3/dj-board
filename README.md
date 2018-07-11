@@ -21,7 +21,7 @@ This is our group project for ENSC 452 - Advanced Digital System Design.  We dec
 * Loopback recorded audio.
 
 ## Requirements
-* Zedboard
+* ZedBoard
 * Vivado 2017.3
 * Vivado 2017.3 Tcl Shell
 * Xilinx SDK
@@ -85,6 +85,26 @@ Make two debug configurations with the following names:
 3. Plug in your audio source into **Line In**.
 4. Plug in your headphones/speakers into **Headphone Out**.
 5. Go and have fun!
+
+### Load onto SD Card (Optional)
+1. In the SDK, click File > New > Application Project.
+2. Choose any name for your application project.
+3. For the Hardware Platform, choose **audioTest_wrapper_***, and click **Next**.
+4. Select **Zynq FSBL**, and click **Finish**.  This is your bootloader.
+5. Build all projects.
+6. Click Xilinx > Create Boot Image.
+7. Specify an output path with the filename as `BOOT.bin`
+7. Add the following files **in order**:
+   - bootloader `.elf` with **Partition Type** `bootloader`.
+   - bitstream `.bit` with **Partition Type** `data`.
+   - audioTest `.elf` with **Partition Type** `data`.
+   - anotherOne `.bin` with **Partition Type** `data` and with **Load** set to the address in `luiMemoryLocations.h`.
+   - airhorn `.bin` with **Partition Type** `data` and with **Load** set to the address in `luiMemoryLocations.h`.
+8. Click **Create Image**.
+9. Copy `BOOT.bin` to the root of a FAT32 formatted SD card, and insert it into the Zedboard.
+10. Set the boot mode of the ZedBoard to SD Card byt shorting jumpers MIO4 and MIO5.
+11. Turn it on, and have fun!
+
 
 ## Button Mappings
 ### Equalizer: 
