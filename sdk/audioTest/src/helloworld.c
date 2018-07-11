@@ -114,6 +114,11 @@ int main()
 
     setUpBeatDetection();
 
+    setUpInterruptCounters();
+
+    // Associate the interrupt controller with the IRQ
+    registerInterruptHandler(psInterruptController);
+
     //setupInterruptSystemXIntc(&interruptController, &gpioSwitches, XPAR_INTC_0_GPIO_1_VEC_ID, gpioSwitchesInterruptHandler);
 	// Set up interrupt handler for switches.
     setupInterruptSystemGpio(psInterruptController, &gpioSwitches, XPAR_FABRIC_AXI_GPIO_SWITCHES_IP2INTC_IRPT_INTR, gpioSwitchesInterruptHandler);
@@ -130,9 +135,6 @@ int main()
 	interruptSetTimer(&psTimer);
 	interruptSetGpioPsPushButtons(&gpioPSPushButtons);
 
-	// Enable the interrupts, and away we go!
-	registerInterruptHandler(psInterruptController);
-	setUpInterruptCounters();
 
 	//XScuTimer_LoadTimer(&psTimer, 5000);
 	//XScuTimer_Start(&psTimer);
