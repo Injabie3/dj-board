@@ -101,8 +101,8 @@ Make two debug configurations with the following names:
    - anotherOne `.bin` with **Partition Type** `data` and with **Load** set to the address in `luiMemoryLocations.h`.
    - airhorn `.bin` with **Partition Type** `data` and with **Load** set to the address in `luiMemoryLocations.h`.
 8. Click **Create Image**.
-9. Copy `BOOT.bin` to the root of a FAT32 formatted SD card, and insert it into the Zedboard.
-10. Set the boot mode of the ZedBoard to SD Card byt shorting jumpers MIO4 and MIO5.
+9. Copy `BOOT.bin` to the root of a FAT32 formatted SD card, and insert it into the ZedBoard.
+10. Set the boot mode of the ZedBoard to SD Card by shorting jumpers MIO4 and MIO5.
 11. Turn it on, and have fun!
 
 
