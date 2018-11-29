@@ -1,4 +1,5 @@
 # ENSC 452 - Group 15 - The Ultimate DJ Board
+![Block Diagram](bd-screenshot.jpg)
 
 ## Overview
 This is our group project for ENSC 452 - Advanced Digital System Design.  We decided to do audio processing in the form of a DJ board.
